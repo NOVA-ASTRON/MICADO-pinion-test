@@ -1,0 +1,12 @@
+--- pythronmotordriver.cpp
++++ pythronmotordriver.cpp
+@@ -183,8 +183,8 @@ void MotorDriver::Init()
+     log->Write("Reset Phytron.");
+     Reset();
+     log->Write("Init Phytron.");
+-    SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
+     addHandler();
++    SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
+     SetMicroSteps(32);
+ }
+ 

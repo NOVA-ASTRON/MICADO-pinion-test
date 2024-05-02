@@ -1,0 +1,121 @@
+diff --git a/driverdev.cpp b/driverdev.cpp
+index 9816591..6a2f7a1 100644
+--- a/driverdev.cpp
++++ b/driverdev.cpp
+@@ -12,26 +12,22 @@
+ 
+ static const deviceinfo rs485id          = { .ID = "FT2JDUB8A", .baud = 19200 };
+ static const deviceinfo autocollimatorid = { .ID = "FT1IEXMOA", .baud = 9600 };
+-static const deviceinfo renishaw1id         = { .ID = "48F524753138", .baud = 115200 };
+-static const deviceinfo renishaw2id         = { .ID = "48EB43743138", .baud = 115200 };
++static const deviceinfo renishawids[]    = {{ .ID = "48F524753138", .baud = 115200 },
++                                            { .ID = "48EB43743138", .baud = 115200 }};
+ static const deviceinfo motronaid        = { .ID = "FT1IF7NZA", .baud = 38400 };
+-static const deviceinfo phytron1id          = { .ID = "6&32A5DFEC&1&3", .baud = 115200 };
+-
+-// backup ids:
+-static const deviceinfo phytron2id          = { .ID = "15F15702", .baud = 115200 };
+-static const deviceinfo phytron3id          = { .ID = "3B3F6816", .baud = 115200 };
+-static const deviceinfo phytron4id          = { .ID = "12c8f4c0", .baud = 115200 };
+-
+-std::map<std::string,const deviceinfo*> deviceInfoLookup = {
+-    {"rs485",&rs485id},
+-    {"autocollimator",&autocollimatorid},
+-    {"renishaw",&renishaw1id},
+-    {"renishaw2",&renishaw2id},
+-    {"motrona",&motronaid},
+-    {"phytron",&phytron1id},
+-    {"phytron2",&phytron2id},
+-    {"phytron3",&phytron3id},
+-    {"phytron4",&phytron4id},
++static const deviceinfo phytronids[]     = {{ .ID = "6&32A5DFEC&1&3", .baud = 115200 },
++                                            { .ID = "5&3B489C26&0&1", .baud = 115200 },
++                                            { .ID = "15F15702", .baud = 115200 },
++                                            { .ID = "3B3F6816", .baud = 115200 },
++                                            { .ID = "12c8f4c0", .baud = 115200 }};
++
++
++std::map<std::string,const optional_devs> deviceInfoLookup = {
++    {"rs485",{&rs485id,1}},
++    {"autocollimator",{&autocollimatorid,1}},
++    {"renishaw",{renishawids,2}},
++    {"motrona",{&motronaid,1}},
++    {"phytron",{phytronids,5}}
+ };
+ 
+ const deviceinfo * DeviceInfoFromName(std::string &name){
+@@ -46,8 +42,10 @@ DriverDev::DriverDev(QObject *parent):QObject(parent)
+ }
+ 
+ 
+-QSerialPort *DriverDev::FindSerialPort(deviceinfo dev)
++QSerialPort *DriverDev::FindSerialPort(optional_devs *devs)
+ {
++    for (int i=0;i<dev.num_infos;i+=1){
++        deviceinfo dev = devs->infos[i];
+         log->Write("Searching device with ID " + dev.ID);
+         QString IDtoFind(dev.ID.c_str());
+         const auto infos = QSerialPortInfo::availablePorts();
+@@ -66,6 +64,7 @@ QSerialPort *DriverDev::FindSerialPort(deviceinfo dev)
+                 return ret;
+             }
+         }
++    }
+ 
+     log->Write("Failed to find COM port.");
+     return null;
+@@ -117,7 +116,7 @@ void DriverDev::InitDriverDev(const deviceinfo *ID, LogFile l, std::string n)
+ {
+     log = l;
+     log->Write("Add device " + n);
+-    myID = *ID;
++    myID = ID;
+     name = n;
+     valid=Connect();
+ }
+diff --git a/driverdev.h b/driverdev.h
+index 67e3828..c62ebb3 100644
+--- a/driverdev.h
++++ b/driverdev.h
+@@ -14,6 +14,11 @@ typedef struct deviceinfo_t
+     int baud;
+ }deviceinfo;
+ 
++typedef struct optional_devs_t {
++    deviceinfo * infos;
++    int num_infos;
++} optional_devs;
++
+ typedef struct deviceState_t
+ {
+     std::string name;
+@@ -38,14 +43,14 @@ class DriverDev : public QObject
+         Q_OBJECT
+ public:
+        QSerialPort *serial = null;
+-       deviceinfo myID;
++       optional_devs *devs;
+        std::string name;
+        LogFile log = null;
+        std::mutex _lock;
+ 
+        DriverDev(QObject *parent = nullptr);
+ 
+-       QSerialPort *FindSerialPort(deviceinfo dev);
++       QSerialPort *FindSerialPort(optional_devs *devs);
+ 
+        bool Connect();
+ 
+diff --git a/mainwindow.cpp b/mainwindow.cpp
+index 005f613..922ae15 100644
+--- a/mainwindow.cpp
++++ b/mainwindow.cpp
+@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
+         chart->addSeries(series[i]);
+     chart->createDefaultAxes();
+     chart->setTitle("Simple line chart example");
+-    chart->axisY()->setRange(0,100);
++    chart->axisY()->setRange(-10,10);
+     ui->TorqueChart->setChart(chart);
+     num=21;
+     ui->TorqueChart->setRenderHint(QPainter::Antialiasing);

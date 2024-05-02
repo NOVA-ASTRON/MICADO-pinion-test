@@ -1,0 +1,65 @@
+--- driverdev.cpp
++++ driverdev.cpp
+@@ -12,26 +12,22 @@
+ 
+ static const deviceinfo rs485id          = { .ID = "FT2JDUB8A", .baud = 19200 };
+ static const deviceinfo autocollimatorid = { .ID = "FT1IEXMOA", .baud = 9600 };
+-static const deviceinfo renishaw1id         = { .ID = "48F524753138", .baud = 115200 };
+-static const deviceinfo renishaw2id         = { .ID = "48EB43743138", .baud = 115200 };
++static const deviceinfo renishawids[]    = {{ .ID = "48F524753138", .baud = 115200 },
++                                            { .ID = "48EB43743138", .baud = 115200 }};
+ static const deviceinfo motronaid        = { .ID = "FT1IF7NZA", .baud = 38400 };
+-static const deviceinfo phytron1id          = { .ID = "6&32A5DFEC&1&3", .baud = 115200 };
+-
+-// backup ids:
+-static const deviceinfo phytron2id          = { .ID = "15F15702", .baud = 115200 };
+-static const deviceinfo phytron3id          = { .ID = "3B3F6816", .baud = 115200 };
+-static const deviceinfo phytron4id          = { .ID = "12c8f4c0", .baud = 115200 };
+-
+-std::map<std::string,const deviceinfo*> deviceInfoLookup = {
+-    {"rs485",&rs485id},
+-    {"autocollimator",&autocollimatorid},
+-    {"renishaw",&renishaw1id},
+-    {"renishaw2",&renishaw2id},
+-    {"motrona",&motronaid},
+-    {"phytron",&phytron1id},
+-    {"phytron2",&phytron2id},
+-    {"phytron3",&phytron3id},
+-    {"phytron4",&phytron4id},
++static const deviceinfo phytronids[]     = {{ .ID = "6&32A5DFEC&1&3", .baud = 115200 },
++                                            { .ID = "5&3B489C26&0&1", .baud = 115200 },
++                                            { .ID = "15F15702", .baud = 115200 },
++                                            { .ID = "3B3F6816", .baud = 115200 },
++                                            { .ID = "12c8f4c0", .baud = 115200 }};
++
++
++std::map<std::string,const optional_devs> deviceInfoLookup = {
++    {"rs485",{&rs485id,1}},
++    {"autocollimator",{&autocollimatorid,1}},
++    {"renishaw",{renishawids,2}},
++    {"motrona",{&motronaid,1}},
++    {"phytron",{phytronids,5}}
+ };
+ 
+ const deviceinfo * DeviceInfoFromName(std::string &name){
+@@ -46,8 +42,10 @@ DriverDev::DriverDev(QObject *parent):QObject(parent)
+ }
+ 
+ 
+-QSerialPort *DriverDev::FindSerialPort(deviceinfo dev)
++QSerialPort *DriverDev::FindSerialPort(optional_devs *devs)
+ {
++    for (int i=0;i<dev.num_infos;i+=1){
++        deviceinfo dev = devs->infos[i];
+         log->Write("Searching device with ID " + dev.ID);
+         QString IDtoFind(dev.ID.c_str());
+         const auto infos = QSerialPortInfo::availablePorts();
+@@ -118,7 +117,7 @@ void DriverDev::InitDriverDev(const deviceinfo *ID, LogFile l, std::string n)
+ {
+     log = l;
+     log->Write("Add device " + n);
+-    myID = *ID;
++    myID = ID;
+     name = n;
+     valid=Connect();
+ }

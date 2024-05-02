@@ -1,0 +1,11 @@
+--- linux/analogdaq.cpp
++++ linux/analogdaq.cpp
+@@ -66,7 +66,7 @@ int rnd=1020313;
+ 
+ float AnalogDAQ::get_AD(int channel)
+ {
+-    rnd = (rnd+210730921)^2893423+340785;
++    rnd = ((rnd+210730921)^2893423)+340785;
+     if (channel==0){
+         return 0.0f+(rnd&255)/300.f;
+     }

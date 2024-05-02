@@ -1,0 +1,116 @@
+diff --git a/driverdev.cpp b/driverdev.cpp
+index 768dd5b..34f2bc2 100644
+--- a/driverdev.cpp
++++ b/driverdev.cpp
+@@ -7,7 +7,6 @@
+ #include <thread>
+ #include <QCoreApplication>
+ #include <QSerialPortInfo>
+-#include <chrono>
+ 
+ #define lock(mut) const std::lock_guard<std::mutex> lock(mut);
+ 
+@@ -181,11 +180,7 @@ bool DriverDev::getValid() const
+ 
+ void msdelay(int ms)
+ {
+-    auto begin = std::chrono::steady_clock::now();
+-    int passed=0;
+-    while (ms>passed) {
+-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, ms);
+-        auto end = std::chrono::steady_clock::now();
+-        passed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+-    }
++    QTime dieTime= QTime::currentTime().addMSecs(ms);
++    while (QTime::currentTime() < dieTime)
++        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+ }
+diff --git a/pythronmotordriver.cpp b/pythronmotordriver.cpp
+index 67c7281..ceae03d 100644
+--- a/pythronmotordriver.cpp
++++ b/pythronmotordriver.cpp
+@@ -192,7 +192,7 @@ void MotorDriver::Reset(int pos)
+ {
+     SendCommand(resetPhytron, "Error: Reset Phytron failed. Serial port not connected.");
+     // wait 2 seconds for the phytron to properly reset.
+-    // msdelay(2000);
++    // usleep(2000);
+     position = pos;
+ }
+ 
+@@ -240,15 +240,16 @@ void MotorDriver::DoSteps(int steps)
+ 
+ bool MotorDriver::IsMotorRunning()
+ {
+-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+-
+     replyreceived = -1;
+     SendCommand(requestState, "Error: Request Phytron state.");
+ 
+     //wait up to 200ms for confirmation
+-    int step = 5;
+-    for (int ms=0;(ms<200) && (replyreceived == -1);ms+=step) {
+-        msdelay(step);
++    int waitloops = 20;
++
++    while ((waitloops > 0) && (replyreceived == -1))
++    {
++        QThread::msleep(1); // msecusleep(1000);
++        waitloops--;
+     }
+     return (ackbits[8] == false);
+ }
+@@ -256,6 +257,7 @@ bool MotorDriver::IsMotorRunning()
+ void MotorDriver::Move(int pos)
+ {
+     DoSteps(pos);
++
+ }
+ 
+ void MotorDriver::MoveTo(int pos)
+@@ -275,30 +277,34 @@ void MotorDriver::MoveCCWzero()
+ 
+ int MotorDriver::ReadEncoderA()
+ {
+-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+     replyreceived = -1;
+-    if (SendCommand(readEncoderA, "Error: Request readEncoderA.")) {
++    if (SendCommand(readEncoderA, "Error: Request readEncoderA.")){
+         //wait up to 200ms for confirmation
+-        int step = 5;
+-        for (int ms=0;(ms<200) && (replyreceived == -1);ms+=step) {
+-            msdelay(step);
++        int waitloops = 20;
++
++        while ((waitloops > 0) && (replyreceived == -1))
++        {
++            QThread::msleep(1); // msecusleep(1000);
++            waitloops--;
+         }
+-        if ((replyreceived == 0) && reply_is_value) return reply_value;
++        if (waitloops && reply_is_value) return reply_value;
+     }
+     return 0;
+ }
+ 
+ int MotorDriver::ReadEncoderB()
+ {
+-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+     replyreceived = -1;
+     if (SendCommand(readEncoderB, "Error: Request readEncoderB.")){
+         //wait up to 200ms for confirmation
+-        int step = 5;
+-        for (int ms=0;(ms<200) && (replyreceived == -1);ms+=step){
+-            msdelay(step);
++        int waitloops = 20;
++
++        while ((waitloops > 0) && (replyreceived == -1))
++        {
++            QThread::msleep(1); // msecusleep(1000);
++            waitloops--;
+         }
+-        if ((replyreceived == 0) && reply_is_value) return reply_value;
++        if (waitloops && reply_is_value) return reply_value;
+     }
+     return 0;
+ }

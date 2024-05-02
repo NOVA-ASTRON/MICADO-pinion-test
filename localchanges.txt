@@ -1,0 +1,28 @@
+diff --git a/driverdev.cpp b/driverdev.cpp
+index 9816591..414f565 100644
+--- a/driverdev.cpp
++++ b/driverdev.cpp
+@@ -15,8 +15,8 @@ static const deviceinfo autocollimatorid    = { .ID = "FT1IEXMOA", .baud = 9600
+ static const deviceinfo renishaw1id         = { .ID = "48F524753138", .baud = 115200 };
+ static const deviceinfo renishaw2id         = { .ID = "48EB43743138", .baud = 115200 };
+ static const deviceinfo motronaid           = { .ID = "FT1IF7NZA", .baud = 38400 };
+-static const deviceinfo phytron1id          = { .ID = "6&32A5DFEC&1&3", .baud = 115200 };
+-
++//static const deviceinfo phytron1id          = { .ID = "6&32A5DFEC&1&3", .baud = 115200 };
++static const deviceinfo phytron1id          = { .ID = "5&3B489C26&0&1", .baud = 115200 };
+ // backup ids:
+ static const deviceinfo phytron2id          = { .ID = "15F15702", .baud = 115200 };
+ static const deviceinfo phytron3id          = { .ID = "3B3F6816", .baud = 115200 };
+diff --git a/mainwindow.cpp b/mainwindow.cpp
+index 005f613..2a57823 100644
+--- a/mainwindow.cpp
++++ b/mainwindow.cpp
+@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
+         chart->addSeries(series[i]);
+     chart->createDefaultAxes();
+     chart->setTitle("Simple line chart example");
+-    chart->axisY()->setRange(0,100);
++    chart->axisY()->setRange(-10,10);
+     ui->TorqueChart->setChart(chart);
+     num=21;
+     ui->TorqueChart->setRenderHint(QPainter::Antialiasing);

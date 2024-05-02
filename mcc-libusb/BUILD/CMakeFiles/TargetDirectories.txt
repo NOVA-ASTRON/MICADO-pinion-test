@@ -1,0 +1,7 @@
+/home/harps3/MICADO/micado-bearingtest/mcc-libusb/BUILD/CMakeFiles/install/strip.dir
+/home/harps3/MICADO/micado-bearingtest/mcc-libusb/BUILD/CMakeFiles/edit_cache.dir
+/home/harps3/MICADO/micado-bearingtest/mcc-libusb/BUILD/CMakeFiles/rebuild_cache.dir
+/home/harps3/MICADO/micado-bearingtest/mcc-libusb/BUILD/CMakeFiles/list_install_components.dir
+/home/harps3/MICADO/micado-bearingtest/mcc-libusb/BUILD/CMakeFiles/mccusb.dir
+/home/harps3/MICADO/micado-bearingtest/mcc-libusb/BUILD/CMakeFiles/install/local.dir
+/home/harps3/MICADO/micado-bearingtest/mcc-libusb/BUILD/CMakeFiles/install.dir
