@@ -1,0 +1,226 @@
+diff --git a/linux/analogdaq.cpp b/linux/analogdaq.cpp
+index 2862e1a..ba2630c 100644
+--- a/linux/analogdaq.cpp
++++ b/linux/analogdaq.cpp
+@@ -66,7 +66,7 @@ int rnd=1020313;
+ 
+ float AnalogDAQ::get_AD(int channel)
+ {
+-    rnd = (rnd+210730921)^2893423+340785;
++    rnd = ((rnd+210730921)^2893423)+340785;
+     if (channel==0){
+         return 0.0f+(rnd&255)/300.f;
+     }
+diff --git a/mainwindow.cpp b/mainwindow.cpp
+index 208f9f8..77583dd 100644
+--- a/mainwindow.cpp
++++ b/mainwindow.cpp
+@@ -128,9 +128,10 @@ MainWindow::MainWindow(QWidget *parent)
+     testbench_next_state=TEST_IDLE;
+ 
+     testbench_timer = new QTimer();
++    test_bench_busy=false;
+     connect(testbench_timer, SIGNAL(timeout()),
+             this, SLOT(on_testbench_tick()));
+-    testbench_tick_ms=500;
++    testbench_tick_ms=10;
+ 
+     //------------------------------------------------------------------------------------------------
+     // add Torque sensor
+@@ -242,6 +243,7 @@ void MainWindow::update_monitoring()
+     if (backgroundMeasurements.running) return;
+ 
+     if (phytron) {
++
+         QString a_value = QString::number(phytron->ReadEncoderA());
+         QString b_value = QString::number(phytron->ReadEncoderB());
+         ui->encoderAValue->setText(a_value);
+@@ -400,13 +402,15 @@ void MainWindow::on_camera()
+ 
+ void MainWindow::on_testbench_tick()
+ {
+-
++    if (test_bench_busy) return;
++    test_bench_busy=true;
+     switch(testbench_main_state){
+     case TEST_IDLE:
+         break;
+     case TEST_FINISHED:
+         break;
+     case TEST_CCW_ZERO:
++        backgroundMeasurements.start_measurements=true;
+         if (phytron){
+             phytron->MoveCCWzero();
+         }
+@@ -416,6 +420,7 @@ void MainWindow::on_testbench_tick()
+             testbench_next_state=TEST_CCW_LONG;
+         break;
+     case TEST_CW_ZERO:
++        backgroundMeasurements.start_measurements=true;
+         if (phytron){
+             phytron->MoveCWzero();
+         }
+@@ -426,7 +431,7 @@ void MainWindow::on_testbench_tick()
+         break;
+     case TEST_CW_LONG:
+     case TEST_CCW_LONG:
+-
++        backgroundMeasurements.start_measurements=true;
+         if (phytron){
+             int steps =ui->motor_revolutions_per_direction_spinBox->value()*200;
+             if (testbench_main_state==TEST_CCW_LONG) steps=-steps;
+@@ -461,9 +466,17 @@ void MainWindow::on_testbench_tick()
+     case TEST_WAIT_PHYTRON:
+         // we should make sure that reading out the phytron is done
+         // without interfering the readout of the position..
+-        if (phytron && phytron->IsMotorRunning())
+-            break;
+-
++        if (phytron){
++            backgroundMeasurements.phytron_position=phytron->ReadEncoderA();
++            if (last_phytron!=backgroundMeasurements.phytron_position){
++                num_not_changed=0;
++                last_phytron=backgroundMeasurements.phytron_position;
++                break;
++            }
++            num_not_changed+=1;
++            if (num_not_changed<10) break;
++        }
++        backgroundMeasurements.stop_measurements=true;
+         // update progress
+         ui->revolutions_counter->setValue(testbench_total_num_revs * (ui->revolutions_counter->maximum()-1) / ui->motor_total_revolutions_spinBox->value());
+         // wait if necessary
+@@ -471,6 +484,12 @@ void MainWindow::on_testbench_tick()
+         testbench_waited_ms = testbench_tick_ms;
+         break;
+     case TEST_WAIT_TIME:
++        if (backgroundMeasurements.num_measurements>0){
++            // save our test data
++            if (testbench_log)
++                store_measurements(testbench_log,backgroundMeasurements.measurements,backgroundMeasurements.num_measurements);
++            backgroundMeasurements.num_measurements=0;
++        }
+         testbench_waited_ms += testbench_tick_ms;
+         if (testbench_waited_ms>=ui->pause_time_spinBox->value()*1000)
+             testbench_main_state=testbench_next_state;
+@@ -479,6 +498,7 @@ void MainWindow::on_testbench_tick()
+         testbench_main_state=TEST_FINISHED;
+         break;
+     }
++    test_bench_busy=false;
+ }
+ 
+ void MainWindow::on_camera_exp_time_spinBox_valueChanged(int arg1)
+@@ -494,22 +514,18 @@ void MainWindow::on_sampling_time_editingFinished()
+     //timer->start(ui->sampling_time->value());
+ }
+ 
+-void MainWindow::store_measurements(LogFile  where,sample & samp)
++void MainWindow::store_measurements(LogFile  where, sample *samp, int num_samples)
+ {
+-    if (where){
+-        std::stringstream ss;
+-        //for (int i=0;i<4;i+=1)
+-        // ss << TorqueSensor.get_AD(0) << ",";
+-        for (int i=0;i<4;i+=1)
+-            ss << samp.val[i] << ",";
+-
+-        //if (phytron)
+-        //    ss << phytron->GetPos() << ",";
+-        //else
+-        //    ss << 0 << ",";
+-        ss << (int) testbench_main_state ;
+-        ss << "\n";
+-        where->Write(ss.str());
++    if (where) {
++        for (int s=0;s<num_samples;s+=1) {
++            std::stringstream ss;
++            for (int i=0;i<4;i+=1)
++                ss << samp[s].val[i] << ",";
++            ss << samp[s].phytron_pos << ",";
++            ss << (int) testbench_main_state ;
++            ss << "\n";
++            where->Write(ss.str());
++        }
+     }
+ }
+ 
+diff --git a/mainwindow.h b/mainwindow.h
+index 13137b8..e7d337e 100644
+--- a/mainwindow.h
++++ b/mainwindow.h
+@@ -56,7 +56,7 @@ private slots:
+     void on_doCWindex_clicked();
+ 
+ private:
+-    void store_measurements(LogFile where, sample &samp);
++    void store_measurements(LogFile where, sample *samp, int num_samples);
+     Ui::MainWindow *ui;
+     QLineSeries *series[num_series];
+     QChart *chart;
+@@ -91,6 +91,9 @@ private:
+     int batch_size[4];
+ 
+     int interval;
++    int num_not_changed;
++    int last_phytron;
++    volatile bool test_bench_busy;
+ 
+     testbench_states testbench_main_state;
+     testbench_states testbench_next_state;
+diff --git a/pythronmotordriver.cpp b/pythronmotordriver.cpp
+index 67c7281..68903c5 100644
+--- a/pythronmotordriver.cpp
++++ b/pythronmotordriver.cpp
+@@ -183,8 +183,8 @@ void MotorDriver::Init()
+     log->Write("Reset Phytron.");
+     Reset();
+     log->Write("Init Phytron.");
+-    SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
+     addHandler();
++    SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
+     SetMicroSteps(32);
+ }
+ 
+diff --git a/threadedtimer.cpp b/threadedtimer.cpp
+index ab4a917..5bee602 100644
+--- a/threadedtimer.cpp
++++ b/threadedtimer.cpp
+@@ -4,7 +4,7 @@
+ 
+ threadedTimer::threadedTimer()
+ {
+-    measurements = new samples[MAX_SAMPLES];
++    measurements = new sample[MAX_SAMPLES];
+     TorqueSensorAvailable = TorqueSensor.Setup();
+     avg_usec=1;
+     requested_sample_time=1;
+@@ -48,7 +48,7 @@ void threadedTimer::unit_of_work()
+             TorqueSensor.get_AD(1),
+             TorqueSensor.get_AD(2),
+             TorqueSensor.get_AD(3),
+-        },
++        },phytron_position,
+     };
+ 
+     // keep some statistics
+diff --git a/threadedtimer.h b/threadedtimer.h
+index cc64f6d..4627589 100644
+--- a/threadedtimer.h
++++ b/threadedtimer.h
+@@ -12,6 +12,7 @@
+ typedef struct {
+     uint64_t stamp;
+     qreal val[4];
++    int phytron_pos;
+ } sample;
+ 
+ typedef enum testbench_states_t {
+@@ -52,6 +53,7 @@ public:
+     // will not store more than MAX_SAMPLES
+     // ---------------------------------
+     volatile int num_measurements;
++    volatile int phytron_position;
+     int sample_index;
+     sample *measurements;
+     sample curr_sample;

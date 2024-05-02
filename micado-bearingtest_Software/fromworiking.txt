@@ -1,0 +1,389 @@
+diff --git a/mainwindow.cpp b/mainwindow.cpp
+index 3be061a..208f9f8 100644
+--- a/mainwindow.cpp
++++ b/mainwindow.cpp
+@@ -225,88 +225,29 @@ MainWindow::~MainWindow()
+ 
+ void MainWindow::update_monitoring()
+ {
+-     //chart->axisX()->setRange(from.toMSecsSinceEpoch(),now.toMSecsSinceEpoch());
++    // hopefully this has no real impact on the measurement thread.
+ 
+-    if (backgroundMeasurements.sample_batch>=0) {
+-        QDateTime now = QDateTime::currentDateTime();
+-        QDateTime from = now.addMSecs(-num_samples*interval);
+-        chart_axisX->setRange(from,now);
+-        float temp[4]={0.f,0.f,0.f,0.f};
+-        int start=0;
+-
+-
+-
+-        if (backgroundMeasurements.batch_size[backgroundMeasurements.sample_batch]>=num_samples*ui->sampling_time->value())
+-            start=backgroundMeasurements.batch_size[backgroundMeasurements.sample_batch]-num_samples*ui->sampling_time->value();
+-
+-
+-        int num_added = 0;
+-        int total_samples=backgroundMeasurements.batch_size[backgroundMeasurements.sample_batch];
+-
+-        sample cumulative_sample=backgroundMeasurements.measurements[backgroundMeasurements.sample_batch][0];
+-        for (int samp=start;samp<total_samples;samp+=1){
+-
+-            if (num_added==0){
+-                cumulative_sample=backgroundMeasurements.measurements[backgroundMeasurements.sample_batch][samp];
+-                num_added++;
+-            } else {
+-                // merge samples
+-                if (num_added<ui->sampling_time->value()){
+-                    for (int i=0;i<num_series;i+=1)
+-                        cumulative_sample.val[i]+=backgroundMeasurements.measurements[backgroundMeasurements.sample_batch][samp].val[i];
+-                    num_added++;
+-                } else {
+-                    for (int i=0;i<num_series;i+=1){
+-                        // remove if no room
+-                        while (series[i]->count() >= num_samples)
+-                            series[i]->removePoints(0,1);
+-
+-                        // append
+-                        *series[i]<<QPointF(cumulative_sample.stamp/1000000,cumulative_sample.val[i]/(qreal)num_added);
+-                        //series[i]->append(now.toMSecsSinceEpoch(), TorqueSensor.get_AD(i));
+-                        series[i]->pointAdded(1);
+-                        temp[i]+=cumulative_sample.val[i];
+-                    }
+-                    num_added=0;
+-                }
+-            }
+-        }
+-        if (num_added>0){
+-            for (int i=0;i<num_series;i+=1){
+-                // remove if no room
+-                while (series[i]->count() >= num_samples)
+-                    series[i]->removePoints(0,1);
+-
+-                // append
+-                *series[i]<<QPointF(cumulative_sample.stamp/1000000,cumulative_sample.val[i]/(qreal)num_added);
+-                //series[i]->append(now.toMSecsSinceEpoch(), TorqueSensor.get_AD(i));
+-                series[i]->pointAdded(1);
+-                temp[i]+=cumulative_sample.val[i];
+-            }
+-        }
+-
+-        QLCDNumber * ref[]={
+-            nullptr,
+-            ui->temp_sensor_1_lcdNumber,
+-            ui->temp_sensor_2_lcdNumber,
+-            ui->temp_sensor_3_lcdNumber,
+-        };
++    QLCDNumber * ref[]={
++        nullptr,
++        ui->temp_sensor_1_lcdNumber,
++        ui->temp_sensor_2_lcdNumber,
++        ui->temp_sensor_3_lcdNumber,
++    };
+ 
+-        for (int tsensor=1;tsensor<4;tsensor+=1){
+-            ref[tsensor]->display(temp[tsensor]/(float)(total_samples-start));
+-        }
+-        backgroundMeasurements.sample_batch=-1;
++    for (int tsensor=1;tsensor<4;tsensor+=1){
++        ref[tsensor]->display(backgroundMeasurements.curr_sample.val[tsensor]*2.4-180);
+     }
+     ui->microseconds_current->setText(QString::number((double)backgroundMeasurements.avg_usec/1000.0));
+-    backgroundMeasurements.requested_sample_time=ui->sampling_time->value();
++
++    if (backgroundMeasurements.running) return;
+ 
+     if (phytron) {
+         QString a_value = QString::number(phytron->ReadEncoderA());
+         QString b_value = QString::number(phytron->ReadEncoderB());
+-
+         ui->encoderAValue->setText(a_value);
+         ui->encoderBValue->setText(b_value);
+     }
++
+ }
+ static int seq=0;
+ void MainWindow::update_cam_image()
+diff --git a/threadedtimer.cpp b/threadedtimer.cpp
+index fc97f5a..a321976 100644
+--- a/threadedtimer.cpp
++++ b/threadedtimer.cpp
+@@ -5,152 +5,103 @@
+ threadedTimer::threadedTimer()
+ {
+     TorqueSensorAvailable = TorqueSensor.Setup();
+-    start_log=false;
+-    stop_log=false;
+     avg_usec=1;
+-    curr_queue=0;
+-    sample_batch=-1;
+     requested_sample_time=1;
+-    /*
+-
+-    // add Phytron controller
+-    const optional_devs *ph=DeviceInfoFromName("phytron");
+-    if (ph){
+-        phytron_log=new LogFile_t("phytronlog.txt");
+-        phytron= new MotorDriver(ph,phytron_log,"phytron");
+-
+-        if (phytron->getValid()){
+-            phytron->Init();
+-            ui->MotorSettings->setAutoFillBackground(true);
+-            ui->MotorSettings->setEnabled(true);
+-           // ui->camera_exp_time_spinBox
+-            ui->start_run_button->setEnabled(true);
+-        } else {
+-            ui->MotorSettings->setEnabled(false);
+-            ui->start_run_button->setText("NO Phytron connected");
+-            delete phytron;
+-            phytron=nullptr;
+-        }
+-    }
+-    */
++    running = false;
++    start_measurements=false;
++    stop_measurements=false;
++    sample_index=0;
+ }
+ 
+ void threadedTimer::unit_of_work()
+ {
++    // --------------------------------------------
++    //  compute delay to match requested sample time
++    // --------------------------------------------
++
+     uint64_t stamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                 std::chrono::high_resolution_clock::now().time_since_epoch())
+                 .count();
+     //long long stamp = ns;//std::chrono::steady_clock::now().time_since_epoch().count();
+     //uint64_t dtime = stamp-start_of_measurements;
+ 
+-    uint64_t current_dt = stamp-last_measurement;
++    uint64_t current_dt = stamp-last_measurement_time;
+ 
+ 
+-    if (stamp<start_of_measurements){
++    // --------------------------------------------
++    // frequency tuning with 10 usec accuracy
++    // --------------------------------------------
++    if ((stamp<next_measurement_time) && (current_dt<(requested_sample_time*1000000ull))){
+         usleep(10);
+         return;
+     }
+-    avg_usec = (avg_usec+(current_dt/1000ull))/2;
+-    start_of_measurements += requested_sample_time*1000000ull;//1000000ull;
+-    last_measurement=stamp;
+-
+-    total_amount_of_samples++;
+-    //avg_usec = dtime/total_amount_of_samples;
+-
+-    //last_measurement+=1000000;
+-
+-    uint64_t phytron_pos = 0;
+-    uint64_t phytron_sensor = 0;
+ 
++    // --------------------------------------------
++    //  get the sample
++    // --------------------------------------------
+ 
+-    sample curr_sample={
+-        last_measurement,
++    curr_sample={
++        stamp,
+         {
+             TorqueSensor.get_AD(0),
+             TorqueSensor.get_AD(1),
+             TorqueSensor.get_AD(2),
+             TorqueSensor.get_AD(3),
+         },
+-
+-
+     };
+ 
+-    if (testbench_log)
+-        store_measurements(testbench_log,curr_sample);
+-
+-    measurements[curr_queue][tcount++]=curr_sample;
+-
+-
+-
+-
+-    // refresh at max 20 Hz
++    // keep some statistics
++    last_measurement_time=stamp;
++    avg_usec = (avg_usec+(current_dt/1000ull))/2;
+ 
+-    if ((tcount)>70 && sample_batch==-1){
+-        //auto dt = std::chrono::duration_cast<std::chrono::microseconds>(dtime).count();
+-        //float timetaken = 0.001f*dt;
++    // advance to next sample time
++    next_measurement_time += requested_sample_time*1000000ull;
+ 
+-        //ui->microseconds_current->setText(QString::number(timetaken));
+-        //update_monitoring();
++    // --------------------------------------------
++    //  handle when time taken was more than 2x sample time
++    // --------------------------------------------
++    if (stamp>next_measurement_time) {
++        // if we want to remain in phase we should do some more calculations..
++        // for now just try to keep the frequency constant.
++        next_measurement_time=stamp+requested_sample_time*1000000ull;
++    }
+ 
+-        // mark this queue as 'done' and allow the monitoring to catch up.
++    // --------------------------------------------
++    //  handle requests and act according to flags
++    // --------------------------------------------
++
++    if (!running){
++        // start a new measurement batch?
++        if (start_measurements) {
++            sample_index = 0;
++            running=true;
++            stop_measurements=false;
++        } else
++            return;
++    }
++    start_measurements=false;
+ 
+-        batch_size[curr_queue]=tcount;
+-        sample_batch = curr_queue;
+-        curr_queue = (curr_queue+1)&3;
++    if (stop_measurements) {
++        running = false;
++        stop_measurements=false;
++        num_measurements=sample_index;
++        return;
++    }
+ 
+-        tcount=0;
++    // --------------------------------------------
++    // store the sample if there is room left
++    // --------------------------------------------
++    if (sample_index<MAX_SAMPLES)
++        measurements[sample_index++]=curr_sample;
+ 
+-        if (start_log) {
+-            if (testbench_log){
+-                delete testbench_log;
+-                testbench_log=new LogFile_t(logdest.toStdString());
+-            }
+-            start_log=false;
+-        }
+-        if (stop_log) {
+-            if (testbench_log){
+-                delete testbench_log;
+-                testbench_log=nullptr;
+-            }
+-            stop_log=false;
+-        }
+-    } else if (tcount>=799) {
+-        tcount = 0;
+-    }
+ }
+ 
+ void threadedTimer::run()
+ {
+-    //localTimer = new QTimer(this);
+-    //localTimer->setInterval(1);
+-    //localTimer->connect(localTimer, SIGNAL(timeout()), this, SLOT(unit_of_work()));
+-    //localTimer->start(1);
+-    last_measurement=std::chrono::high_resolution_clock::now().time_since_epoch().count();
+-    start_of_measurements=last_measurement+1000000ll;
+-    total_amount_of_samples=0;
+-    /* Here: */
+-    //exec();             // Starts Qt event loop and stays there
+-    // Which means you can't have a while(true) loop inside doIt()
+-    // which instead will get called every 1 ms by your init code above.
++    // prime our timings on 1ms sample time.
++    last_measurement_time=std::chrono::high_resolution_clock::now().time_since_epoch().count();
++    next_measurement_time=last_measurement_time+requested_sample_time*1000000ull;
+     while (1){
+         unit_of_work();
+     }
+ }
+-
+-void threadedTimer::store_measurements(LogFile where, sample &samp)
+-{
+-    if (where){
+-        std::stringstream ss;
+-        //for (int i=0;i<4;i+=1)
+-        // ss << TorqueSensor.get_AD(0) << ",";
+-        for (int i=0;i<4;i+=1)
+-            ss << samp.val[i] << ",";
+-
+-        //if (phytron)
+-        //    ss << phytron->GetPos() << ",";
+-        //else
+-        //    ss << 0 << ",";
+-        ss << (int) testbench_main_state << "\n";
+-        where->Write(ss.str());
+-    }
+-}
+diff --git a/threadedtimer.h b/threadedtimer.h
+index 84cbad7..3f85c18 100644
+--- a/threadedtimer.h
++++ b/threadedtimer.h
+@@ -29,38 +29,47 @@ typedef enum testbench_states_t {
+     TEST_WAIT_TIME,
+ } testbench_states;
+ 
++const int MAX_SAMPLES = 1000*100;
++
+ class threadedTimer : public QThread
+ {
+     Q_OBJECT
+ public:
+     threadedTimer();
+-    QTimer * localTimer;
+-    int tcount;
+-    LogFile testbench_log;
+-    volatile int curr_queue,sample_batch;
+-    sample measurements[4][800];
+-    int batch_size[4];
+-    AnalogDAQ TorqueSensor;
+-    //MotorDriver *phytron=nullptr;
+-    LogFile phytron_log;
+ 
++    AnalogDAQ TorqueSensor;
+     bool TorqueSensorAvailable;
+-    QString logdest;
+-    volatile bool start_log,stop_log;
+-    testbench_states testbench_main_state;
+ 
++    // ---------------------------------
++    // flags for interactions
++    // ---------------------------------
++    volatile bool start_measurements;
++    volatile bool stop_measurements;
++    volatile bool running;
++
++    // ---------------------------------
++    // sample buffer, has limited size
++    // will not store more than MAX_SAMPLES
++    // ---------------------------------
++    volatile int num_measurements;
++    int sample_index;
++    sample measurements[MAX_SAMPLES];
++    sample curr_sample;
++
++    // ---------------------------------
++    // time keeping
++    // ---------------------------------
+     uint64_t avg_usec;
+     uint64_t requested_sample_time;
+-    uint64_t start_of_measurements;
++    uint64_t next_measurement_time;
+     uint64_t total_amount_of_samples;
+-    uint64_t last_measurement;
++    uint64_t last_measurement_time;
+ 
+ public slots:
+     void unit_of_work();
+ protected:
+     void run();
+-private:
+-    void store_measurements(LogFile  where,sample & samp);
++
+ };
+ 
+ #endif // THREADEDTIMER_H

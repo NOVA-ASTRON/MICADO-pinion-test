@@ -1,0 +1,31 @@
+--- driverdev.h
++++ driverdev.h
+@@ -14,6 +14,11 @@ typedef struct deviceinfo_t
+     int baud;
+ }deviceinfo;
+ 
++typedef struct optional_devs_t {
++    deviceinfo * infos;
++    int num_infos;
++} optional_devs;
++
+ typedef struct deviceState_t
+ {
+     std::string name;
+@@ -38,14 +43,14 @@ class DriverDev : public QObject
+         Q_OBJECT
+ public:
+        QSerialPort *serial = null;
+-       deviceinfo myID;
++       optional_devs *devs;
+        std::string name;
+        LogFile log = null;
+        std::mutex _lock;
+ 
+        DriverDev(QObject *parent = nullptr);
+ 
+-       QSerialPort *FindSerialPort(deviceinfo dev);
++       QSerialPort *FindSerialPort(optional_devs *devs);
+ 
+        bool Connect();
+ 

@@ -1,0 +1,50 @@
+GMT 2023-07-21 09:00:06.928 : Add device phytron
+GMT 2023-07-21 09:00:06.928 : Searching device with ID 6&32A5DFEC&1&3
+GMT 2023-07-21 09:00:06.970 : Failed to find COM port.
+GMT 2023-07-21 09:00:06.970 : SerialDev: failed to attched serial for phytron
+GMT 2023-09-04 14:36:15.064,Add device phytron
+GMT 2023-09-04 14:36:15.064,Searching device with ID 6&32A5DFEC&1&3
+GMT 2023-09-04 14:36:15.082,serial : 
+desc : 
+
+GMT 2023-09-04 14:36:15.082,Searching device with ID 5&3B489C26&0&1
+GMT 2023-09-04 14:36:15.099,serial : 
+desc : 
+
+GMT 2023-09-04 14:36:15.099,Searching device with ID 15F15702
+GMT 2023-09-04 14:36:15.116,serial : 
+desc : 
+
+GMT 2023-09-04 14:36:15.116,Searching device with ID 3B3F6816
+GMT 2023-09-04 14:36:15.133,serial : 
+desc : 
+
+GMT 2023-09-04 14:36:15.133,Searching device with ID 12c8f4c0
+GMT 2023-09-04 14:36:15.150,serial : 
+desc : 
+
+GMT 2023-09-04 14:36:15.150,Failed to find COM port.
+GMT 2023-09-04 14:36:15.150,SerialDev: failed to attched serial for phytron
+GMT 2023-09-05 11:06:09.926,Add device phytron
+GMT 2023-09-05 11:06:09.926,Searching device with ID 6&32A5DFEC&1&3
+GMT 2023-09-05 11:06:09.943,serial : 
+desc : 
+
+GMT 2023-09-05 11:06:09.943,Searching device with ID 5&3B489C26&0&1
+GMT 2023-09-05 11:06:09.960,serial : 
+desc : 
+
+GMT 2023-09-05 11:06:09.960,Searching device with ID 15F15702
+GMT 2023-09-05 11:06:09.978,serial : 
+desc : 
+
+GMT 2023-09-05 11:06:09.978,Searching device with ID 3B3F6816
+GMT 2023-09-05 11:06:09.994,serial : 
+desc : 
+
+GMT 2023-09-05 11:06:09.994,Searching device with ID 12c8f4c0
+GMT 2023-09-05 11:06:10.011,serial : 
+desc : 
+
+GMT 2023-09-05 11:06:10.011,Failed to find COM port.
+GMT 2023-09-05 11:06:10.011,SerialDev: failed to attched serial for phytron
