@@ -215,6 +215,12 @@ MainWindow::MainWindow(QWidget *parent)
 
     backgroundMeasurements.start();
 
+    //------------------------------------------------------------------------------------------------
+    // cleanup threads and timers when we are done
+    //------------------------------------------------------------------------------------------------
+    connect(this, SIGNAL(destroyed()), timer, SLOT(stop()));
+    connect(this, SIGNAL(destroyed()), updatesTimer, SLOT(stop()));
+    connect(this, SIGNAL(destroyed()), backgroundMeasurements, SLOT(exit()));
 }
 
 MainWindow::~MainWindow()
