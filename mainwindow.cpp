@@ -220,7 +220,6 @@ MainWindow::MainWindow(QWidget *parent)
     //------------------------------------------------------------------------------------------------
     connect(this, SIGNAL(destroyed()), timer, SLOT(stop()));
     connect(this, SIGNAL(destroyed()), updatesTimer, SLOT(stop()));
-    connect(this, SIGNAL(destroyed()), backgroundMeasurements, SLOT(exit()));
 }
 
 MainWindow::~MainWindow()
