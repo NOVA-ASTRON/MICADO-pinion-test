@@ -144,7 +144,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(updatesTimer, SIGNAL(timeout()),
             this, SLOT(on_updates_timer()));
 
-    updatesTimer->start(20);// 20 Hz
+    updatesTimer->start(50);// 20 Hz
 
     //------------------------------------------------------------------------------------------------
     // process data every 0.1 sec
