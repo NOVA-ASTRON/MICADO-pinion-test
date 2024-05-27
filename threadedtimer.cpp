@@ -11,7 +11,8 @@ threadedTimer::threadedTimer()
     running = false;
     start_measurements=false;
     stop_measurements=false;
-    sample_index=0;
+    sample_index = 0;
+    exit = false;
 }
 
 void threadedTimer::unit_of_work()
@@ -107,7 +108,7 @@ void threadedTimer::run()
     // prime our timings on 1ms sample time.
     last_measurement_time=std::chrono::high_resolution_clock::now().time_since_epoch().count();
     next_measurement_time=last_measurement_time+requested_sample_time*1000000ull;
-    while (1){
+    while (!exit){
         unit_of_work();
     }
 }

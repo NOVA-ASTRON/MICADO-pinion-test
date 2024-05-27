@@ -47,6 +47,7 @@ public:
     volatile bool start_measurements;
     volatile bool stop_measurements;
     volatile bool running;
+    volatile bool exit;
 
     // ---------------------------------
     // sample buffer, has limited size

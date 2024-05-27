@@ -224,6 +224,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    backgroundMeasurements.exit = true;
+    backgroundMeasurements.wait();
     if(phytron) delete phytron;
     if (phytron_log) delete phytron_log;
     delete ui;
