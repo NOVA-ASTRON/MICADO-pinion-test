@@ -16,14 +16,7 @@ static const deviceinfo autocollimatorid = { .ID = "FT1IEXMOA", .baud = 9600 };
 static const deviceinfo renishawids[]    = {{ .ID = "48F524753138", .baud = 115200 },
                                             { .ID = "48EB43743138", .baud = 115200 }};
 static const deviceinfo motronaid        = { .ID = "FT1IF7NZA", .baud = 38400 };
-static const deviceinfo phytronids[]     = { { .ID = "6&347f23d1&0&1", .baud = 115200 },
-                                             { .ID = "6&32A5DFEC&1&3", .baud = 115200 },
-                                            { .ID = "6&2EF6BFFB&0&1", .baud = 115200 },
-                                            { .ID = "5&3B489C26&0&1", .baud = 115200 },
-                                            { .ID = "6&347F23D1&0&1", .baud = 115200 },
-                                            { .ID = "3B3F6816", .baud = 115200 },
-                                            { .ID = "12c8f4c0", .baud = 115200 },
-                                          };
+static const deviceinfo phytronids[]     = {{ .ID = "0403:6001", .baud = 115200 }};
 
 
 std::map<std::string, const optional_devs> deviceInfoLookup = {
@@ -31,7 +24,7 @@ std::map<std::string, const optional_devs> deviceInfoLookup = {
     {"autocollimator",{&autocollimatorid,1}},
     {"renishaw",{&renishawids[0],2}},
     {"motrona",{&motronaid,1}},
-    {"phytron",{&phytronids[0],7}}
+    {"phytron",{&phytronids[0],1}}
 };
 
 const optional_devs* DeviceInfoFromName(const std::string &name){
@@ -50,17 +43,19 @@ QSerialPort *DriverDev::FindSerialPort(const optional_devs *devs)
 {
     for (int i=0;i<devs->num_infos;i+=1){
         deviceinfo dev = devs->infos[i];
-        log->Write("Searching device with ID " + dev.ID);
-        QString IDtoFind(dev.ID.c_str());
+        log->Write("Searching device with VID:PID " + dev.ID);
+        long vid = strtol(dev.ID.substr(0, 4).c_str(), NULL, 16);
+        long pid = strtol(dev.ID.substr(5, 4).c_str(), NULL, 16);
         const auto infos = QSerialPortInfo::availablePorts();
         for (auto &info:infos){
             std::stringstream ss;
             ss << "serial : "<< info.serialNumber().toStdString() <<"\n";
-            ss << "desc : " << info.description().toStdString() <<"\n";
+            ss << "desc : " << info.description().toStdString() << "\n";
+            ss << "pid (decimal): " << info.productIdentifier() << "\n";
+            ss << "vid (decimal): " << info.vendorIdentifier() << "\n";
             log->Write(ss.str());
-            if (info.serialNumber()==IDtoFind){
+            if (info.vendorIdentifier()==vid && info.productIdentifier()==pid){
                 QSerialPort *ret = new QSerialPort(info);
-
                 // if correctly created apply settings
                 if (ret) {
                     ret->setBaudRate(dev.baud);
