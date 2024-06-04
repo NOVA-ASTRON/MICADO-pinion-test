@@ -6,7 +6,6 @@
 #include "thorlabscamera.h"
 #include "threadedtimer.h"
 
-#include <QtCharts>
 #include <QLineSeries>
 #include <QLineSeries>
 #include <QMainWindow>
@@ -59,7 +58,6 @@ private:
     void store_movie();
     Ui::MainWindow *ui;
     QLineSeries *series[num_series];
-    QChart *chart;
     int num;
     qreal min,max;
     MotorDriver *phytron;
@@ -68,8 +66,6 @@ private:
     AnalogDAQ TorqueSensor;
     bool TorqueSensorAvailable;
 
-    QtCharts::QDateTimeAxis *chart_axisX;
-    QtCharts::QValueAxis *chart_axisY,*temp_axis;
     QPixmap camera_pixmap;
     ThorlabsCamera cam;
     bool cam_valid;

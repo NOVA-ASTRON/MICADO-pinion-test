@@ -23,64 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
         "torque","temp1","temp2","temp3",
     };
 
-
     ui->setupUi(this);
-    chart = new QChart();
-    interval=100;
-    QDateTime now=QDateTime::currentDateTime();
-    for (int i=0;i<num_series;i+=1){
-        series[i] = new QLineSeries(chart);
-        series[i]->setName(sname[i]);
-        for (int j=0;j<num_samples;j++){
-            QDateTime pt = now.addMSecs((j-num_samples)*interval);
-            if (i==0)
-             series[i]->append(pt.toMSecsSinceEpoch(),0.f);
-            else
-             series[i]->append(pt.toMSecsSinceEpoch(),315.f);
-        }
-    }
-
-    curr_queue=0;
-    sample_batch=-1;
-
-    //chart->createDefaultAxes();
-    chart_axisX = new QDateTimeAxis();
-    chart->addAxis(chart_axisX,Qt::AlignBottom);
-    chart_axisX->setTickCount(5);
-    chart_axisX->setFormat("hh:mm:ss");
-    chart_axisX->setTitleText("Time");
-    chart_axisX->setRange(now.addMSecs(-num_samples*interval),now);
-    //chart->setTitle("torque sensor and temperatures");
-    //chart->title()->setAlignment(Qt::AlignRight);
-
-
-    chart_axisY = new QtCharts::QValueAxis();
-    chart->addAxis(chart_axisY,Qt::AlignLeft);
-    chart_axisY->setRange(-2,2);
-    chart_axisY->setTitleText("torque");
-
-    temp_axis = new QtCharts::QValueAxis();
-    chart->addAxis(temp_axis,Qt::AlignRight);
-    temp_axis->setRange(80,328);
-    temp_axis->setTitleText("temp K");
-    for(int i=0;i<num_series;i+=1){
-        chart->addSeries(series[i]);
-        series[i]->attachAxis(chart_axisX);
-        if (i>0)
-            series[i]->attachAxis(temp_axis);
-        else
-            series[i]->attachAxis(chart_axisY);
-        series[i]->setName(sname[i]);
-    }
-
-
-    //chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignRight);
-    chart->layout()->setContentsMargins(0, 0, 0, 0);
-
-    ui->TorqueChart->setChart(chart);
-    num=21;
-    ui->TorqueChart->setRenderHint(QPainter::Antialiasing);
 
     // add Phytron controller
     const optional_devs *ph=DeviceInfoFromName("phytron");
