@@ -167,7 +167,7 @@ MainWindow::MainWindow(QWidget *parent)
     //------------------------------------------------------------------------------------------------
     cam_valid=cam.init_camera();
     if (cam_valid){
-        cam.setExposure(10000);
+        cam.setExposure(100000);
         bool error = cam.setup_callbacks();
         if (!error) error= cam.start_capture();
         if (error){
