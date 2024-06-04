@@ -2,7 +2,6 @@
 #define MAINWINDOW_H
 
 #include "analogdaq.h"
-#include "led_driver.h"
 #include "pythronmotordriver.h"
 #include "thorlabscamera.h"
 #include "threadedtimer.h"
@@ -64,7 +63,6 @@ private:
     int num;
     qreal min,max;
     MotorDriver *phytron;
-    led_driver *leds;
     LogFile phytron_log;
     LogFile ledcontrol_log;
     AnalogDAQ TorqueSensor;
