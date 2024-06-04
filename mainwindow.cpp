@@ -102,22 +102,6 @@ MainWindow::MainWindow(QWidget *parent)
         }
     }
 
-    // add LED control
-
-    ledcontrol_log=new LogFile_t("ledcontrollog.txt");
-    const optional_devs *leddevs=DeviceInfoFromName("ledcontroller");
-    if (leddevs){
-        leds = new led_driver(leddevs,ledcontrol_log,"phytron");
-        if (leds->getValid()){
-            ui->led_intensity_horizontalSlider->setEnabled(true);
-            ui->led_intensity_horizontalSlider_2->setEnabled(true);
-        } else {
-            ui->led_intensity_horizontalSlider->setEnabled(false);
-            ui->led_intensity_horizontalSlider_2->setEnabled(false);
-
-        }
-    }
-
     timer = nullptr;
 
     //------------------------------------------------------------------------------------------------
@@ -182,13 +166,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->video_duration_spinBox->setEnabled(cam_valid);
     ui->video_cycle_spinBox->setEnabled(cam_valid);
     ui->CaptureImagesDuringRotation->setEnabled(cam_valid);
-    ui->led_intensity_horizontalSlider->setEnabled(cam_valid);
-    ui->led_intensity_horizontalSlider_2->setEnabled(cam_valid);
     ui->label_9->setEnabled(cam_valid);
     ui->label_13->setEnabled(cam_valid);
-    ui->label_20->setEnabled(cam_valid);
     ui->label_21->setEnabled(cam_valid);
-    ui->label_22->setEnabled(cam_valid);
 
     //------------------------------------------------------------------------------------------------
     // image capture timer
