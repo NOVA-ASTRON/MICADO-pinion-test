@@ -14,7 +14,6 @@ SOURCES += \
     pythronmotordriver.cpp \
     thorlabscamera.cpp \
     thorlabs/tl_camera_sdk_load.c \
-    led_driver.cpp \
     threadedtimer.cpp
 
 
@@ -28,7 +27,6 @@ HEADERS += \
     mainwindow.h \
     pythronmotordriver.h \
     thorlabscamera.h \
-    led_driver.h \
     threadedtimer.h
 
 
