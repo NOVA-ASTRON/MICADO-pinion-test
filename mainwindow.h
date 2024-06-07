@@ -34,11 +34,7 @@ public:
     void update_cam_image();
 
 private slots:
-    void on_led_intensity_horizontalSlider_valueChanged(int value);
-
     void on_start_run_button_clicked();
-
-    void on_led_intensity_horizontalSlider_2_valueChanged(int value);
 
     void on_timer();
     void on_updates_timer();
@@ -57,12 +53,10 @@ private:
     void store_measurements(LogFile where, sample *samp, int num_samples);
     void store_movie();
     Ui::MainWindow *ui;
-    QLineSeries *series[num_series];
     int num;
     qreal min,max;
     MotorDriver *phytron;
     LogFile phytron_log;
-    LogFile ledcontrol_log;
     AnalogDAQ TorqueSensor;
     bool TorqueSensorAvailable;
 

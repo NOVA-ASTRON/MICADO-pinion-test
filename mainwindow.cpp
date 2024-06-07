@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include <QFileDialog>
 #include <logfile.h>
 #include <QWidget>
 
@@ -205,10 +206,6 @@ void MainWindow::update_cam_image()
 }
 
 
-void MainWindow::on_led_intensity_horizontalSlider_valueChanged(int value)
-{
-    //update_monitoring();
-}
 using Clock = std::chrono::high_resolution_clock;
 static std::string timePointToString(const Clock::time_point &tp, const std::string &format, bool withMs = true, bool utc = true)
 {
@@ -274,10 +271,6 @@ void MainWindow::on_start_run_button_clicked()
     }
 }
 
-void MainWindow::on_led_intensity_horizontalSlider_2_valueChanged(int value)
-{
-    //update_monitoring();
-}
 void MainWindow::on_timer()
 {
     if (saveImage) {
