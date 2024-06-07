@@ -6,8 +6,6 @@
 #include "thorlabscamera.h"
 #include "threadedtimer.h"
 
-#include <QLineSeries>
-#include <QLineSeries>
 #include <QMainWindow>
 
 QT_BEGIN_NAMESPACE
