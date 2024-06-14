@@ -185,7 +185,7 @@ void MotorDriver::Init()
     log->Write("Init Phytron.");
     addHandler();
     SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
-    SetMicroSteps(32);
+    SetMicroSteps(210);
 }
 
 void MotorDriver::Reset(int pos)

@@ -276,7 +276,8 @@ void MainWindow::on_timer()
     if (saveImage) {
         auto time_running = QDateTime::currentSecsSinceEpoch()-vidStartTime.toSecsSinceEpoch();
         if (time_running>=ui->video_duration_spinBox->value()) {
-            saveImage = false;
+            //saveImage = false;
+            printf("No image saved! \r\n");
         }
     }
 }
@@ -325,6 +326,9 @@ void MainWindow::on_testbench_tick()
         backgroundMeasurements.start_measurements=true;
         if (phytron){
             int steps =ui->motor_revolutions_per_direction_spinBox->value()*200;
+                std::stringstream ss;
+                ss << "Step at: " << testbench_total_num_revs+ui->motor_revolutions_per_direction_spinBox->value() << "\n";
+                phytron_log->Write(ss.str());
             if (testbench_main_state==TEST_CCW_LONG) steps=-steps;
             phytron->Move(steps);
 
@@ -334,6 +338,7 @@ void MainWindow::on_testbench_tick()
                     //saveImage=true;
                     movie_capture_busy=true;
                     cam.start_movie_capture();
+                    printf("Movie capture started! \r\n");
                 }
                 vidCycles++;
             }
@@ -362,6 +367,7 @@ void MainWindow::on_testbench_tick()
                 cam.stop_movie_capture();
                 movie_capture_busy=false;
                 movie_capture_save=true;
+                printf("Movie capture is finished, movie can be saved now (duration of video is reached)! \r\n");
             }
         }
         if (phytron){
@@ -378,6 +384,7 @@ void MainWindow::on_testbench_tick()
             cam.stop_movie_capture();
             movie_capture_busy=false;
             movie_capture_save=true;
+            printf("Movie capture is finished, movie can be saved now! \r\n");
         }
         if (backgroundMeasurements.running) {
             backgroundMeasurements.stop_measurements=true;
@@ -404,6 +411,7 @@ void MainWindow::on_testbench_tick()
         if (movie_capture_save){
             movie_capture_save=false;
             store_movie();
+            printf("Movie is stored! \r\n");
         }
         testbench_waited_ms = std::abs(testbench_wait_start.msecsTo(QDateTime::currentDateTime()));
         if (testbench_waited_ms>=ui->pause_time_spinBox->value()*1000){
@@ -456,6 +464,7 @@ void MainWindow::store_movie()
         if (frame){
             QString frame_name = imgDir + "/imgframe" + QString::number(stamp.toMSecsSinceEpoch()) +".png";
             frame->save(frame_name,"PNG");
+            printf("Image is saved! \r\n");
         }
     }
 
