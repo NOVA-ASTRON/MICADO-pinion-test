@@ -402,8 +402,6 @@ void MainWindow::on_testbench_tick()
             // save our test data
             if (testbench_log){
                 store_measurements(testbench_log,backgroundMeasurements.measurements,backgroundMeasurements.num_measurements);
-                if (testbench_next_state==TEST_FINISHED)
-                    testbench_log->close();
             }
             backgroundMeasurements.num_measurements=0;
         }
@@ -415,8 +413,10 @@ void MainWindow::on_testbench_tick()
         testbench_waited_ms = std::abs(testbench_wait_start.msecsTo(QDateTime::currentDateTime()));
         if (testbench_waited_ms>=ui->pause_time_spinBox->value()*1000){
             testbench_main_state=testbench_next_state;
-            if (testbench_total_num_revs>=ui->motor_total_revolutions_spinBox->value())
-                testbench_main_state=TEST_FINISHED;
+            if (testbench_total_num_revs>=ui->motor_total_revolutions_spinBox->value()) {
+                testbench_main_state = TEST_FINISHED;
+                testbench_log->close();
+            }
         }
         break;
     default:
