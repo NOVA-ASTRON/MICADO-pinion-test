@@ -325,7 +325,7 @@ void MainWindow::on_testbench_tick()
     case TEST_CCW_LONG:
         backgroundMeasurements.start_measurements=true;
         if (phytron){
-            int steps =ui->motor_revolutions_per_direction_spinBox->value()*200;
+            int steps =ui->motor_revolutions_per_direction_spinBox->value()*200*1.591549431;
                 std::stringstream ss;
                 ss << "Step at: " << testbench_total_num_revs+ui->motor_revolutions_per_direction_spinBox->value() << "\n";
                 phytron_log->Write(ss.str());

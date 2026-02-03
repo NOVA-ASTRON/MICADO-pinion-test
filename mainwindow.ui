@@ -99,7 +99,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Total Revolutions</string>
+       <string>Total number of strokes (1/2x #cycles)</string>
       </property>
      </widget>
      <widget class="QSpinBox" name="motor_total_revolutions_spinBox">

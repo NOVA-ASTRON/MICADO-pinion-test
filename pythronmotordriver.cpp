@@ -326,7 +326,7 @@ void MotorDriver::relAngle(double angle)
 void MotorDriver::SetGearbox(bool p)
 {
     if (p) gear_ratio = 49.0;
-    else gear_ratio = 1.0;
+    else gear_ratio = 2.0;
 }
 void MotorDriver::SetTotalSteps(int steps)
 {

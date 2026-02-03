@@ -43,6 +43,9 @@ typedef enum testbench_states_t {
     TEST_SAVE_IMAGE=10,
     TEST_WAIT_PHYTRON=11,
     TEST_WAIT_TIME=12,
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 } testbench_states;
 
