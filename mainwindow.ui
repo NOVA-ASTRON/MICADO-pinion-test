@@ -51,10 +51,13 @@
        </font>
       </property>
       <property name="text">
-       <string>Revolutions/Direction</string>
+       <string>Strokes/Direction</string>
       </property>
      </widget>
      <widget class="QSpinBox" name="motor_revolutions_per_direction_spinBox">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="font">
        <font>
         <pointsize>12</pointsize>
@@ -67,7 +70,7 @@
        <number>99999999</number>
       </property>
       <property name="value">
-       <number>5</number>
+       <number>1</number>
       </property>
      </widget>
     </widget>
@@ -108,14 +111,11 @@
       <property name="alignment">
        <set>Qt::AlignCenter</set>
       </property>
-      <property name="minimum">
-       <number>0</number>
-      </property>
       <property name="maximum">
        <number>160000</number>
       </property>
       <property name="value">
-       <number>50</number>
+       <number>4</number>
       </property>
      </widget>
     </widget>
@@ -145,6 +145,9 @@
       </property>
      </widget>
      <widget class="QSpinBox" name="pause_time_spinBox">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="font">
        <font>
         <pointsize>12</pointsize>
@@ -156,8 +159,14 @@
       <property name="maximum">
        <number>1300000</number>
       </property>
+      <property name="singleStep">
+       <number>1</number>
+      </property>
+      <property name="stepType">
+       <enum>QAbstractSpinBox::DefaultStepType</enum>
+      </property>
       <property name="value">
-       <number>3</number>
+       <number>0</number>
       </property>
      </widget>
     </widget>
@@ -190,10 +199,13 @@
         </font>
        </property>
        <property name="text">
-        <string>Motor Speed (rev/min)</string>
+        <string>Motor Speed (rev/min) !! cannot be adjusted in UI !!</string>
        </property>
       </widget>
       <widget class="QSpinBox" name="motor_speed_spinBox">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="font">
         <font>
          <pointsize>12</pointsize>
@@ -203,7 +215,7 @@
         <set>Qt::AlignCenter</set>
        </property>
        <property name="value">
-        <number>2</number>
+        <number>29</number>
        </property>
       </widget>
      </widget>
@@ -221,10 +233,13 @@
         </font>
        </property>
        <property name="text">
-        <string>Motor Acceleration (rev/min^2)</string>
+        <string>Motor Acceleration (rev/min^2)  !! cannot be adjusted in UI !!</string>
        </property>
       </widget>
       <widget class="QSpinBox" name="motor_acceleration_spinBox">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="font">
         <font>
          <pointsize>12</pointsize>
@@ -234,7 +249,7 @@
         <set>Qt::AlignCenter</set>
        </property>
        <property name="value">
-        <number>5</number>
+        <number>17</number>
        </property>
       </widget>
      </widget>
@@ -344,7 +359,7 @@
        <number>999999</number>
       </property>
       <property name="value">
-       <number>100</number>
+       <number>20</number>
       </property>
      </widget>
     </widget>
@@ -371,6 +386,9 @@
       </property>
      </widget>
      <widget class="QSpinBox" name="video_duration_spinBox">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="font">
        <font>
         <pointsize>12</pointsize>
@@ -380,7 +398,7 @@
        <set>Qt::AlignCenter</set>
       </property>
       <property name="value">
-       <number>5</number>
+       <number>1</number>
       </property>
      </widget>
     </widget>
@@ -734,7 +752,7 @@
        <number>999999</number>
       </property>
       <property name="value">
-       <number>100</number>
+       <number>4</number>
       </property>
      </widget>
     </widget>

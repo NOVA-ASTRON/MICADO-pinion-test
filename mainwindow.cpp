@@ -169,7 +169,7 @@ void MainWindow::update_monitoring()
     };
 
     for (int tsensor=1;tsensor<4;tsensor+=1){
-        ref[tsensor]->display(backgroundMeasurements.curr_sample.val[tsensor]*24.0+93.15);
+        ref[tsensor]->display(backgroundMeasurements.curr_sample.val[tsensor]*24.0+73.15);
     }
     ui->microseconds_current->setText(QString::number((double)backgroundMeasurements.avg_usec/1000.0));
 
