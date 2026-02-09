@@ -16,20 +16,6 @@ typedef struct {
 } sample;
 
 typedef enum testbench_states_t {
-<<<<<<< Updated upstream
-    TEST_IDLE,
-    TEST_FINISHED,
-    TEST_CW_ZERO,
-    TEST_CCW_ZERO,
-    TEST_CW_LONG,
-    TEST_CW_SHORT,
-    TEST_CCW_LONG,
-    TEST_CCW_SHORT,
-    TEST_START_MOVIE_CAPTURE,
-    TEST_SAVE_IMAGE,
-    TEST_WAIT_PHYTRON,
-    TEST_WAIT_TIME,
-=======
     TEST_IDLE=0,
     TEST_FINISHED=1,
     TEST_CW_ZERO=2,
@@ -43,10 +29,6 @@ typedef enum testbench_states_t {
     TEST_SAVE_IMAGE=10,
     TEST_WAIT_PHYTRON=11,
     TEST_WAIT_TIME=12,
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 } testbench_states;
 
 const int MAX_SAMPLES = 1000*120;
