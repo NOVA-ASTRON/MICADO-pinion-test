@@ -1,12 +1,54 @@
 #include "pythronmotordriver.h"
 
 #include <QThread>
+#include <cmath>
+#define lock(mut) const std::lock_guard<std::mutex> lock(mut);
+
+
+static const char _initPhytron[] = { 2, 0x30, 'X', 'M', 'A', 3 };
+static char _disablePhytron[] = { 2, 0x30, 'X', 'M', 'D', 3 };
+static char _readAnalogPhytron[] = { 2, 0x30, 'A', 'D', '1', 'R', 3 };
+static char _requestState[] = { 2, 0x30, 'S', 'E', 3 };
+static char _enablePowerStage[] = { 2, 0x30, 'E', 'A', 'S', '1', '1', '1', '1', '1', '1', '1', '1', 3 };
+static char _resetPhytron[] = { 2, 0x30, 'C', 'R', 3 };
+
+static char _move_cw_zero[] = {2,0x30,'X','0','-','I',3};
+static char _move_ccw_zero[] = {2,0x30,'X','0','+','I',3};
+static char _mop_min[] = {2,0x30,'X','0','-',3};
+static char _mop_plus[] = {2,0x30,'X','0','+',3};
+static char _read_encoder_A[] = {2,0x30,'X','P','2','1','R',3};
+static char _read_encoder_B[] = {2,0x30,'X','P','2','2','R',3};
+static char _read_pos_A[] = {2,0x30,'X','P','2','0','R',3};
+
+static Command initPhytron      ={.cmd=_initPhytron,      .length=sizeof (_initPhytron)};
+static Command disablePhytron   ={.cmd=_disablePhytron,   .length=sizeof (_disablePhytron)};
+static Command readAnalogPhytron={.cmd=_readAnalogPhytron,.length=sizeof (_readAnalogPhytron)};
+static Command requestState     ={.cmd=_requestState,     .length=sizeof (_requestState)};
+static Command enablePowerStage ={.cmd=_enablePowerStage, .length=sizeof (_enablePowerStage)};
+static Command resetPhytron     ={.cmd=_resetPhytron,     .length=sizeof (_resetPhytron)};
+
+static Command moveCWZero       ={.cmd=_move_cw_zero,     .length=sizeof (_move_cw_zero)};
+static Command moveCCWZero      ={.cmd=_move_ccw_zero,     .length=sizeof (_move_ccw_zero)};
+
+
+static Command MOPplus          ={.cmd=_mop_plus,     .length=sizeof (_mop_plus)};
+static Command MOPmin           ={.cmd=_mop_min,     .length=sizeof (_mop_min)};
+
+static Command readEncoderA     ={.cmd=_read_encoder_A,     .length=sizeof (_read_encoder_A)};
+static Command readEncoderB     ={.cmd=_read_encoder_B,     .length=sizeof (_read_encoder_B)};
+
+static Command readPosA         ={.cmd=_read_pos_A,     .length=sizeof (_read_pos_A)};
 
 MotorDriver::MotorDriver(const optional_devs *port, LogFile _log, std::string name)
 {
     InitDriverDev(port, _log, name);
+    reply_received = 0;
+    for(int i=0;i<200;i+=1){
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+        msdelay(10);
+    }
+
     position = 0;
-    ackbits[8] = true; // motor is stopped.
 }
 
 void MotorDriver::incomingbytes(QByteArray arr)
@@ -16,19 +58,72 @@ void MotorDriver::incomingbytes(QByteArray arr)
         {
         case 0x2:
             reply = "";
+            is_ack_message=false;
+            bitindex = 0;
+            reply_value=0;
+            is_float=false;
+            float_offset=0;
+            reply_is_value=false;
+            reply_value_is_negative=false;
             break;
         case 0x3:
             if (reply != "")
             {
                 // SerialLog.Write("Got reply " + reply);
             }
-            if (is_ack_message){
-                if(reply_value_is_negative&&reply_is_value)
-                    reply_value=-reply_value;
-                if (reply_is_value){
+            //if (is_ack_message){
+            if (reply_received==-1){
+                // is someone waiting?
+                reply_received=1;
+                switch (Interest){
+
+                case FloatPosition:
+                    if (reply_is_value&& is_float){
+                        double t=reply_value;
+                        if (float_offset>0){
+                            double n=float_offset;
+                            double m = pow(10,n);
+                            t=t/m;
+                        }
+                        if(reply_value_is_negative) t=-t;
+                        f_reply_value=t;
+                        reply_received=0; // zero means 'OK'
+                    } else
+                        reply_received=1; // 1 means not properly received.
+                    break;
+                case IntPosition:
+                    if (reply_is_value&& is_float){
+                        double t=reply_value;
+                        if (float_offset>0){
+                            double n=float_offset;
+                            double m = pow(10,n);
+                            t=t/m;
+                        }
+                        if(reply_value_is_negative) t=-t;
+                        reply_value=t;
+                        reply_received=0; // zero means 'OK'
+                        break;
+                    }
+                    if (reply_is_value && !is_float){
+                        int t=reply_value;
+                        if(reply_value_is_negative) t=-t;
+                        reply_value=t;
+                        reply_received=0; // zero means 'OK'
+                        break;
+                    }
+                    else
+                        reply_received=1; // 1 means not properly received.
+                    break;
+                case GetStatus:
+                    StatusMotorIsRunning = (ackbits[8] == false);
+                    StatusM0PositionAchieved = (ackbits[9] == true);
+                    reply_received=0;
+                    break;
+                default:
+                    reply_received=1;
+                    break;
 
                 }
-                replyreceived = 0;
             }
             is_ack_message = false;
             break;
@@ -36,10 +131,19 @@ void MotorDriver::incomingbytes(QByteArray arr)
             is_ack_message = true;
             bitindex = 15;
             reply_value=0;
+            is_float=false;
+            float_offset=0;
             reply_is_value=false;
             reply_value_is_negative=false;
             break;
         default:
+                reply += tmp;
+            if (tmp=='.'){
+                is_float=true;
+                break;
+            }
+            if (is_float) float_offset+=1;
+
             if (is_ack_message && (bitindex >= 3))
             {
                 int nibble = 0;
@@ -55,12 +159,13 @@ void MotorDriver::incomingbytes(QByteArray arr)
                 ackbits[bitindex--] = ((nibble & 8) != 0);
                 nibble = nibble * 2;
             }
+
             if ((tmp >= '0') && (tmp <= '9')) {
                 reply_value=reply_value*10+tmp-'0';
                 reply_is_value=true;
             } else reply_is_value=false;
             if (tmp=='-') reply_value_is_negative=true;
-            reply += tmp;
+
             break;
         }
     }
@@ -152,31 +257,6 @@ void MotorDriver::SetMicroSteps(int steps)
 
 
 
-static const char _initPhytron[] = { 2, 0x30, 'X', 'M', 'A', 3 };
-static char _disablePhytron[] = { 2, 0x30, 'X', 'M', 'D', 3 };
-static char _readAnalogPhytron[] = { 2, 0x30, 'A', 'D', '1', 'R', 3 };
-static char _requestState[] = { 2, 0x30, 'S', 'E', 3 };
-static char _enablePowerStage[] = { 2, 0x30, 'E', 'A', 'S', '1', '1', '1', '1', '1', '1', '1', '1', 3 };
-static char _resetPhytron[] = { 2, 0x30, 'C', 'R', 3 };
-
-static char _move_cw_zero[] = {2,0x30,'X','0','-','I',3};
-static char _move_ccw_zero[] = {2,0x30,'X','0','+','I',3};
-
-static char _read_encoder_A[] = {2,0x30,'X','P','2','1','R',3};
-static char _read_encoder_B[] = {2,0x30,'X','P','2','2','R',3};
-
-static Command initPhytron      ={.cmd=_initPhytron,      .length=sizeof (_initPhytron)};
-static Command disablePhytron   ={.cmd=_disablePhytron,   .length=sizeof (_disablePhytron)};
-static Command readAnalogPhytron={.cmd=_readAnalogPhytron,.length=sizeof (_readAnalogPhytron)};
-static Command requestState     ={.cmd=_requestState,     .length=sizeof (_requestState)};
-static Command enablePowerStage ={.cmd=_enablePowerStage, .length=sizeof (_enablePowerStage)};
-static Command resetPhytron     ={.cmd=_resetPhytron,     .length=sizeof (_resetPhytron)};
-
-static Command moveCWZero       ={.cmd=_move_cw_zero,     .length=sizeof (_move_cw_zero)};
-static Command moveCCWZero      ={.cmd=_move_ccw_zero,     .length=sizeof (_move_ccw_zero)};
-static Command readEncoderA     ={.cmd=_read_encoder_A,     .length=sizeof (_read_encoder_A)};
-static Command readEncoderB     ={.cmd=_read_encoder_B,     .length=sizeof (_read_encoder_B)};
-
 
 void MotorDriver::Init()
 {
@@ -186,6 +266,9 @@ void MotorDriver::Init()
     addHandler();
     SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
     SetMicroSteps(94);
+    if (!SendAndWaitForReply(requestState, "Error: Request Phytron state at INIT.",GetStatus))  std::cerr << "WARNING: Could not get status at INIT!!\n";
+    else if (StatusMotorIsRunning)  std::cerr << "WARNING: motor is running at INIT!!\n";
+
 }
 
 void MotorDriver::Reset(int pos)
@@ -200,7 +283,7 @@ void MotorDriver::Disconnect()
 {
     log->Write("Disable Phytron.");
     SendCommand(disablePhytron, "Error: Disable Phytron failed. Serial port not connected.");
-    Disconnect();
+    DriverDev::Disconnect();
 }
 
 void MotorDriver::DoSteps(int steps)
@@ -235,22 +318,16 @@ void MotorDriver::DoSteps(int steps)
 
     SendCommand(cmd, "Error: Move motor " + value + " steps");
     //Thread.Sleep(100);
-    SendCommand(requestState, "Error: Request Phytron state.");
+    //SendCommand(requestState, "Error: Request Phytron state.");
 }
 
-bool MotorDriver::IsMotorRunning()
+bool MotorDriver::IsMotorRunning(char const * reftxt)
 {
-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+    //if (SendAndWaitForReply(requestState, reftxt,GetStatus,true))
+        return (StatusMotorIsRunning);
 
-    replyreceived = -1;
-    SendCommand(requestState, "Error: Request Phytron state.");
+    //return true;
 
-    //wait up to 200ms for confirmation
-    int step = 5;
-    for (int ms=0;(ms<200) && (replyreceived == -1);ms+=step) {
-        msdelay(step);
-    }
-    return (ackbits[8] == false);
 }
 
 void MotorDriver::Move(int pos)
@@ -263,6 +340,41 @@ void MotorDriver::MoveTo(int pos)
     Move(pos - position);
 }
 
+// goto positio absolute with zero is M0P-
+void MotorDriver::GoToPos(int pos)
+{
+    if (pos < 0)
+    {
+        pos =0 ;
+    }
+    char plusmin = '+';
+    totalsteps += abs(position-pos);
+    position = pos;
+
+    pos+=4; // relatve to MOP-
+
+
+    std::string value = std::to_string(pos);
+
+    // assemble command
+    char * buffer = new char[value.length() + 5];
+    int index = 0;
+    buffer[index++] = 2; // <STX>
+    buffer[index++] = (0x30); // address phytron
+    buffer[index++] = ('X'); // Move to position
+    buffer[index++] = ('A'); // Absolute
+    buffer[index++] = (plusmin);
+    for (unsigned int i = 0; i < value.length(); i++)
+        buffer[index++] = (value[i]);
+
+    buffer[index++] = 3; // <ETX>
+    Command cmd={.cmd=buffer,.length=index};
+
+    SendCommand(cmd, "Error: Move to position " + value + " mm ");
+    //Thread.Sleep(100);
+    //SendCommand(requestState, "Error: Request Phytron state.");
+}
+
 void MotorDriver::MoveCWzero()
 {
     SendCommand(moveCWZero, "Error: Request move cw zero.");
@@ -273,8 +385,22 @@ void MotorDriver::MoveCCWzero()
     SendCommand(moveCCWZero, "Error: Request move ccw zero.");
 }
 
+void MotorDriver::DoMOPplus()
+{
+    SendCommand(MOPplus, "Error: Request MOP+.");
+     StatusM0PositionAchieved=false;
+}
+
+void MotorDriver::DoMOPmin()
+{
+    SendCommand(MOPmin, "Error: Request MOP-.");
+
+    StatusM0PositionAchieved=false;
+}
+
 int MotorDriver::ReadEncoderA()
 {
+    /*
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
     replyreceived = -1;
     if (SendCommand(readEncoderA, "Error: Request readEncoderA.")) {
@@ -285,22 +411,45 @@ int MotorDriver::ReadEncoderA()
         }
         if ((replyreceived == 0) && reply_is_value) return reply_value;
     }
+    */
     return 0;
 }
 
 int MotorDriver::ReadEncoderB()
 {
-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
-    replyreceived = -1;
-    if (SendCommand(readEncoderB, "Error: Request readEncoderB.")){
+    /*
+    //QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+    reply_received = -1;
+    if (SendCommand(readEncoderB, "Error: Request readEncoderB."))
+
+    {
         //wait up to 200ms for confirmation
         int step = 5;
-        for (int ms=0;(ms<200) && (replyreceived == -1);ms+=step){
+        for (int ms=0;(ms<200) && (reply_received == -1);ms+=step){
             msdelay(step);
         }
-        if ((replyreceived == 0) && reply_is_value) return reply_value;
+        if ((reply_received == 0) && reply_is_value && is_float) return 42424242;
+        if ((reply_received == 0) && reply_is_value) return reply_value;
     }
+    */
     return 0;
+}
+
+bool MotorDriver::ReadPosA(float &dest)
+{
+    if (SendAndWaitForReply(readPosA, "Error: Request read Pos A.",FloatPosition,true)){
+        dest=f_reply_value;
+        return true;
+    }
+    return false;
+}
+
+bool MotorDriver::ReadStatus()
+{
+    if (SendAndWaitForReply(readPosA, "Error: Request read Status.",GetStatus,false)){
+        return true;
+    }
+    return false;
 }
 
 
@@ -328,6 +477,49 @@ void MotorDriver::SetGearbox(bool p)
     if (p) gear_ratio = 49.0;
     else gear_ratio = 2.0;
 }
+
+bool MotorDriver::isM0P()
+{
+    return StatusM0PositionAchieved;
+}
+
+bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDriver::ReceiverInterest_t interest, bool isfatal)
+{
+    if (reply_received == -1) {
+        std::cerr << "concurrency detected! :" << alttxt << "\n";
+        if (isfatal) exit(-1);
+        Error=true;
+        return false;
+    }
+    lock (_lock2) {
+        num_requests+=1;
+        if (reply_received == -1) {
+            std::cerr << "concurrency detected during Lock! :" << alttxt << "\n";
+            return false;
+        }
+
+        Interest = interest;
+        reply_received = -1;
+        SendCommand(cmd,alttxt);
+
+        if (reply_received == -1){
+            //wait up to 200ms for confirmation
+            int step = 10;
+            for (int ms=0;(ms<400) && (reply_received == -1);ms+=1) {
+                QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+                //QCoreApplication::
+                msdelay(step);
+            }
+            if (reply_received != -1) return true;
+            std::cerr << "Phytron request " << num_requests << " : " << alttxt << " got no reply!\n";
+            exit(-1);
+        }
+    }
+
+    return (reply_received != -1);
+}
+
+
 void MotorDriver::SetTotalSteps(int steps)
 {
     totalsteps = steps;

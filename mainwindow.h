@@ -47,6 +47,10 @@ private slots:
 
     void on_doCWindex_clicked();
 
+    void on_GoTenForward_clicked();
+
+    void on_GoTenBackwards_clicked();
+
 private:
     void store_measurements(LogFile where, sample *samp, int num_samples);
     void store_movie();
@@ -82,11 +86,15 @@ private:
     int num_not_changed;
     int last_phytron;
     volatile bool test_bench_busy=false;
+    volatile bool updates_busy=false;
     volatile bool movie_capture_busy=false;
     volatile bool movie_capture_save=false;
+    volatile int sync_cnt=0;
+    bool M0Pachieved=false;
 
     testbench_states testbench_main_state;
     testbench_states testbench_next_state;
+    float rack_pos=0.0;
 
 };
 #endif // MAINWINDOW_H

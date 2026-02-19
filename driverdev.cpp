@@ -151,12 +151,15 @@ bool DriverDev::SendCommand(Command &command, std::string err)
             {
                 serial->write(command.cmd,command.length);
                 retval = true;
+
             }
             catch (const std::exception& e)
             {
                 log->Write(err);
+                std::cerr << err <<"\n";
             }
-        }
+        } else std::cerr << "SerialDev(" << name << ") Not present:" << err << "\n";
+
     }
     if (retval == false)
         log->Write("SerialDev(" + name + ") Not present:" + err);

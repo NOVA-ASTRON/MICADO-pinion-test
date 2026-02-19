@@ -1,6 +1,7 @@
 #include <sstream>
 #include "threadedtimer.h"
 #include <chrono>
+#define lock(mut) const std::lock_guard<std::mutex> lock(mut)
 
 threadedTimer::threadedTimer()
 {
@@ -13,6 +14,14 @@ threadedTimer::threadedTimer()
     stop_measurements=false;
     sample_index = 0;
     exit = false;
+}
+
+void threadedTimer::StampWD()
+{
+    lock(wdmutex);
+    watchdogstamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::high_resolution_clock::now().time_since_epoch())
+                .count();
 }
 
 void threadedTimer::unit_of_work()
@@ -101,6 +110,7 @@ void threadedTimer::unit_of_work()
     if (sample_index<MAX_SAMPLES)
         measurements[sample_index++]=curr_sample;
 
+
 }
 
 void threadedTimer::run()
@@ -108,7 +118,18 @@ void threadedTimer::run()
     // prime our timings on 1ms sample time.
     last_measurement_time=std::chrono::high_resolution_clock::now().time_since_epoch().count();
     next_measurement_time=last_measurement_time+requested_sample_time*1000000ull;
+    StampWD();
     while (!exit){
         unit_of_work();
+        watchdog();
     }
+}
+
+void threadedTimer::watchdog()
+{
+    lock(wdmutex);
+
+    uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    if ((now-watchdogstamp)>5000) // 5 seconds watchdog
+        exit=true;
 }

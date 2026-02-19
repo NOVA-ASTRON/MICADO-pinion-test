@@ -12,7 +12,7 @@
 typedef struct {
     uint64_t stamp;
     qreal val[4];
-    int phytron_pos;
+    float phytron_pos;
 } sample;
 
 typedef enum testbench_states_t {
@@ -29,6 +29,10 @@ typedef enum testbench_states_t {
     TEST_SAVE_IMAGE=10,
     TEST_WAIT_PHYTRON=11,
     TEST_WAIT_TIME=12,
+
+    TEST_MOVE_FORWARD=14,
+    TEST_MOVE_BACKWARDS=15,
+    TEST_MOVE_ZERO=16,
 } testbench_states;
 
 const int MAX_SAMPLES = 1000*120;
@@ -55,7 +59,7 @@ public:
     // will not store more than MAX_SAMPLES
     // ---------------------------------
     volatile int num_measurements;
-    volatile int phytron_position;
+    volatile float phytron_position;
     int sample_index;
     unsigned int runcount;
     sample *measurements;
@@ -69,11 +73,17 @@ public:
     uint64_t next_measurement_time;
     uint64_t total_amount_of_samples;
     uint64_t last_measurement_time;
+    std::mutex wdmutex;
+    uint64_t watchdogstamp;
+
+    void StampWD();
 
 public slots:
     void unit_of_work();
 protected:
     void run();
+private:
+    void watchdog();
 
 };
 
