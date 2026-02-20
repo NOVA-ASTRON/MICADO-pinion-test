@@ -11,20 +11,20 @@
 
 #define lock(mut) const std::lock_guard<std::mutex> lock(mut);
 
-static const deviceinfo rs485id          = { .ID = "FT2JDUB8A", .baud = 19200 };
-static const deviceinfo autocollimatorid = { .ID = "FT1IEXMOA", .baud = 9600 };
-static const deviceinfo renishawids[]    = {{ .ID = "48F524753138", .baud = 115200 },
+static const deviceinfo rs485_id          = { .ID = "FT2JDUB8A", .baud = 19200 };
+static const deviceinfo autocollimator_id = { .ID = "FT1IEXMOA", .baud = 9600 };
+static const deviceinfo renishaw_ids[]    = {{ .ID = "48F524753138", .baud = 115200 },
                                             { .ID = "48EB43743138", .baud = 115200 }};
-static const deviceinfo motronaid        = { .ID = "FT1IF7NZA", .baud = 38400 };
-static const deviceinfo phytronids[]     = {{ .ID = "0403:6001", .baud = 115200 }};
+static const deviceinfo motrona_id        = { .ID = "FT1IF7NZA", .baud = 38400 };
+static const deviceinfo phytron_ids[]     = {{ .ID = "0403:6001", .baud = 115200 }};
 
 
 std::map<std::string, const optional_devs> deviceInfoLookup = {
-    {"rs485",{&rs485id,1}},
-    {"autocollimator",{&autocollimatorid,1}},
-    {"renishaw",{&renishawids[0],2}},
-    {"motrona",{&motronaid,1}},
-    {"phytron",{&phytronids[0],1}}
+    {"rs485",{&rs485_id,1}},
+    {"autocollimator",{&autocollimator_id,1}},
+    {"renishaw",{&renishaw_ids[0],2}},
+    {"motrona",{&motrona_id,1}},
+    {"phytron",{&phytron_ids[0],1}}
 };
 
 const optional_devs* DeviceInfoFromName(const std::string &name){
@@ -85,6 +85,7 @@ bool DriverDev::Connect()
         if (serial->open(QIODevice::ReadWrite) == false)
         {
             log->Write("SerialDev(" + name + "): failed to open serial port");
+            std::cerr << "SerialDev(" << name << "): failed to open serial port\n";
             return false;
         } else {
             serial->flush();
@@ -140,7 +141,7 @@ void DriverDev::processincomingbytes()
     }
 }
 
-bool DriverDev::SendCommand(Command &command, std::string err)
+bool DriverDev::_SendCommand(Command &command, std::string err)
 {
     bool retval = false;
     lock (_lock)
@@ -151,6 +152,7 @@ bool DriverDev::SendCommand(Command &command, std::string err)
             {
                 serial->write(command.cmd,command.length);
                 retval = true;
+                num_sent+=1;
 
             }
             catch (const std::exception& e)
@@ -170,13 +172,19 @@ deviceState DriverDev::GetDeviceState()
 {
     return {
         .name = name,
-        .connected = ((serial != nullptr) ? serial->isOpen() : false)
+        .connected = ((serial != nullptr) ? serial->isOpen() : false),
+        .queue_empty = serial->bytesToWrite()==0
     };
 }
 
 bool DriverDev::getValid() const
 {
     return valid;
+}
+
+int DriverDev::getNum_sent() const
+{
+    return num_sent;
 }
 
 void msdelay(int ms)

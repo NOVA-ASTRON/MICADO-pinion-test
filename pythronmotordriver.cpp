@@ -42,18 +42,15 @@ static Command readPosA         ={.cmd=_read_pos_A,     .length=sizeof (_read_po
 MotorDriver::MotorDriver(const optional_devs *port, LogFile _log, std::string name)
 {
     InitDriverDev(port, _log, name);
-    reply_received = 0;
-    for(int i=0;i<200;i+=1){
-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
-        msdelay(10);
-    }
+    //reply_received = 0;
 
     position = 0;
 }
 
 void MotorDriver::incomingbytes(QByteArray arr)
 {
-    foreach(char tmp,arr){
+    for (int index=0;index<arr.length();index+=1){
+        unsigned char tmp = arr[index];
         switch (tmp)
         {
         case 0x2:
@@ -67,64 +64,40 @@ void MotorDriver::incomingbytes(QByteArray arr)
             reply_value_is_negative=false;
             break;
         case 0x3:
-            if (reply != "")
-            {
-                // SerialLog.Write("Got reply " + reply);
+            std::cerr << "Reply : " << reply << " ; " << reply_received  << " " << "\n";
+            if (reply_received==-3 && (reply=="")){
+                reply_received=0;
             }
             //if (is_ack_message){
             if (reply_received==-1){
+                if (reply=="") break;
+
+
                 // is someone waiting?
                 reply_received=1;
                 switch (Interest){
 
                 case FloatPosition:
-                    if (reply_is_value&& is_float){
-                        double t=reply_value;
-                        if (float_offset>0){
-                            double n=float_offset;
-                            double m = pow(10,n);
-                            t=t/m;
-                        }
-                        if(reply_value_is_negative) t=-t;
-                        f_reply_value=t;
-                        reply_received=0; // zero means 'OK'
-                    } else
-                        reply_received=1; // 1 means not properly received.
+                    f_reply_value = atof(reply.c_str());
+                    reply_received=3; // 1 means not properly received.
                     break;
                 case IntPosition:
-                    if (reply_is_value&& is_float){
-                        double t=reply_value;
-                        if (float_offset>0){
-                            double n=float_offset;
-                            double m = pow(10,n);
-                            t=t/m;
-                        }
-                        if(reply_value_is_negative) t=-t;
-                        reply_value=t;
-                        reply_received=0; // zero means 'OK'
-                        break;
-                    }
-                    if (reply_is_value && !is_float){
-                        int t=reply_value;
-                        if(reply_value_is_negative) t=-t;
-                        reply_value=t;
-                        reply_received=0; // zero means 'OK'
-                        break;
-                    }
-                    else
-                        reply_received=1; // 1 means not properly received.
+                    reply_value=atoi(reply.c_str());
+                    reply_received=3; // 1 means not properly received.
                     break;
                 case GetStatus:
-                    StatusMotorIsRunning = (ackbits[8] == false);
-                    StatusM0PositionAchieved = (ackbits[9] == true);
-                    reply_received=0;
+                    if (is_ack_message){
+                        StatusMotorIsRunning = (ackbits[8] == false);
+                        StatusM0PositionAchieved = (ackbits[9] == true);
+                        reply_received=3;
+                    } else reply_received=1;
                     break;
                 default:
                     reply_received=1;
                     break;
 
                 }
-            }
+            } else reply_received=4;
             is_ack_message = false;
             break;
         case 0x6:
@@ -137,11 +110,17 @@ void MotorDriver::incomingbytes(QByteArray arr)
             reply_value_is_negative=false;
             break;
         default:
-                reply += tmp;
+            reply.append(1,tmp);
             if (tmp=='.'){
                 is_float=true;
                 break;
             }
+            if (tmp=='-'){
+
+                reply_value_is_negative=true;
+
+            }
+
             if (is_float) float_offset+=1;
 
             if (is_ack_message && (bitindex >= 3))
@@ -164,7 +143,7 @@ void MotorDriver::incomingbytes(QByteArray arr)
                 reply_value=reply_value*10+tmp-'0';
                 reply_is_value=true;
             } else reply_is_value=false;
-            if (tmp=='-') reply_value_is_negative=true;
+
 
             break;
         }
@@ -264,7 +243,8 @@ void MotorDriver::Init()
     Reset();
     log->Write("Init Phytron.");
     addHandler();
-    SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
+    _SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
+
     SetMicroSteps(94);
     if (!SendAndWaitForReply(requestState, "Error: Request Phytron state at INIT.",GetStatus))  std::cerr << "WARNING: Could not get status at INIT!!\n";
     else if (StatusMotorIsRunning)  std::cerr << "WARNING: motor is running at INIT!!\n";
@@ -273,7 +253,7 @@ void MotorDriver::Init()
 
 void MotorDriver::Reset(int pos)
 {
-    SendCommand(resetPhytron, "Error: Reset Phytron failed. Serial port not connected.");
+    _SendCommand(resetPhytron, "Error: Reset Phytron failed. Serial port not connected.");
     // wait 2 seconds for the phytron to properly reset.
     // msdelay(2000);
     position = pos;
@@ -282,7 +262,7 @@ void MotorDriver::Reset(int pos)
 void MotorDriver::Disconnect()
 {
     log->Write("Disable Phytron.");
-    SendCommand(disablePhytron, "Error: Disable Phytron failed. Serial port not connected.");
+    _SendCommand(disablePhytron, "Error: Disable Phytron failed. Serial port not connected.");
     DriverDev::Disconnect();
 }
 
@@ -316,7 +296,7 @@ void MotorDriver::DoSteps(int steps)
     buffer[index++] = 3; // <ETX>
     Command cmd={.cmd=buffer,.length=index};
 
-    SendCommand(cmd, "Error: Move motor " + value + " steps");
+    _SendCommand(cmd, "Error: Move motor " + value + " steps");
     //Thread.Sleep(100);
     //SendCommand(requestState, "Error: Request Phytron state.");
 }
@@ -370,30 +350,30 @@ void MotorDriver::GoToPos(int pos)
     buffer[index++] = 3; // <ETX>
     Command cmd={.cmd=buffer,.length=index};
 
-    SendCommand(cmd, "Error: Move to position " + value + " mm ");
+    _SendCommand(cmd, "Error: Move to position " + value + " mm ");
     //Thread.Sleep(100);
     //SendCommand(requestState, "Error: Request Phytron state.");
 }
 
 void MotorDriver::MoveCWzero()
 {
-    SendCommand(moveCWZero, "Error: Request move cw zero.");
+    _SendCommand(moveCWZero, "Error: Request move cw zero.");
 }
 
 void MotorDriver::MoveCCWzero()
 {
-    SendCommand(moveCCWZero, "Error: Request move ccw zero.");
+    _SendCommand(moveCCWZero, "Error: Request move ccw zero.");
 }
 
 void MotorDriver::DoMOPplus()
 {
-    SendCommand(MOPplus, "Error: Request MOP+.");
+    _SendCommand(MOPplus, "Error: Request MOP+.");
      StatusM0PositionAchieved=false;
 }
 
 void MotorDriver::DoMOPmin()
 {
-    SendCommand(MOPmin, "Error: Request MOP-.");
+    _SendCommand(MOPmin, "Error: Request MOP-.");
 
     StatusM0PositionAchieved=false;
 }
@@ -446,7 +426,7 @@ bool MotorDriver::ReadPosA(float &dest)
 
 bool MotorDriver::ReadStatus()
 {
-    if (SendAndWaitForReply(readPosA, "Error: Request read Status.",GetStatus,false)){
+    if (SendAndWaitForReply(requestState, "Error: Request read Status.",GetStatus,false)){
         return true;
     }
     return false;
@@ -483,6 +463,11 @@ bool MotorDriver::isM0P()
     return StatusM0PositionAchieved;
 }
 
+bool MotorDriver::SendCommand(Command cmd, const char *alttxt)
+{
+    if (reply_received==-1) std::cerr << "concurrency detected! :" << alttxt << "\n";
+}
+
 bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDriver::ReceiverInterest_t interest, bool isfatal)
 {
     if (reply_received == -1) {
@@ -498,9 +483,17 @@ bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDri
             return false;
         }
 
+        auto t = GetDeviceState();
+        if (!t.queue_empty){
+            while(!t.queue_empty){
+                QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+                t = GetDeviceState();
+            }
+        }
+
         Interest = interest;
         reply_received = -1;
-        SendCommand(cmd,alttxt);
+        _SendCommand(cmd,alttxt);
 
         if (reply_received == -1){
             //wait up to 200ms for confirmation
@@ -511,12 +504,13 @@ bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDri
                 msdelay(step);
             }
             if (reply_received != -1) return true;
+            reply_received=-2;
             std::cerr << "Phytron request " << num_requests << " : " << alttxt << " got no reply!\n";
-            exit(-1);
+            if (isfatal) exit(-1);
         }
     }
 
-    return (reply_received != -1);
+    return (reply_received > -1);
 }
 
 

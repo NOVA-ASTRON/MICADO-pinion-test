@@ -23,6 +23,7 @@ typedef struct deviceState_t
 {
     std::string name;
     bool connected;
+    bool queue_empty;
 }deviceState;
 
 typedef struct cmd_t {
@@ -67,13 +68,16 @@ public:
        void addHandler();
 
        void processincomingbytes();
-       bool SendCommand(Command & command, std::string err);
+       bool _SendCommand(Command & command, std::string err);
 
        deviceState GetDeviceState();
 
        bool getValid() const;
 
+       int getNum_sent() const;
+
 private:
+       int num_sent=0;
        QByteArray IncomingData;
        bool valid;
    };

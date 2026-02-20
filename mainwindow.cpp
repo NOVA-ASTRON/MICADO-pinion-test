@@ -32,6 +32,8 @@ MainWindow::MainWindow(QWidget *parent)
         phytron_log=new LogFile_t("phytronlog.txt");
         phytron= new MotorDriver(ph,phytron_log,"phytron");
 
+
+
         if (phytron->getValid()){
             phytron->Init();
             ui->MotorSettings->setAutoFillBackground(true);
@@ -161,6 +163,7 @@ void MainWindow::update_monitoring()
     // hopefully this has no real impact on the measurement thread.
 
     backgroundMeasurements.StampWD();
+    phytron->ReadStatus();
 
     if (!M0Pachieved && phytron && phytron->isM0P()){
         M0Pachieved=true;
@@ -180,7 +183,10 @@ void MainWindow::update_monitoring()
     }
 
 
-    if (backgroundMeasurements.running) return;
+    if (backgroundMeasurements.running) {
+        ui->encoderBValue->setText("NOVALUE");
+        return;
+    }
 
     QLCDNumber * ref[]={
         nullptr,
@@ -196,10 +202,10 @@ void MainWindow::update_monitoring()
 
 
     if (phytron) {
-        if (phytron->ReadStatus()){
+        //if (phytron->ReadStatus()){
             QString a_value = phytron->IsMotorRunning("Is motor running in update_monitoring()")?"Running":"Stopped";// QString::number(phytron->ReadEncoderA());
             ui->encoderAValue->setText(a_value);
-        }
+        //}
 
         if (phytron->ReadPosA(rack_pos)) {
             QString b_value = QString::number(rack_pos);

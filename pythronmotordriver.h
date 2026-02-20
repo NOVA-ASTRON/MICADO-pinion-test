@@ -93,6 +93,7 @@ private:
 
         ReceiverInterest_t Interest;
         std::mutex _lock2;
+        bool SendCommand(Command cmd,char const * alttxt);
         bool SendAndWaitForReply(Command cmd,char const * alttxt,ReceiverInterest_t interest,bool isfatal=false);
 
         volatile bool StatusMotorIsRunning=false;
