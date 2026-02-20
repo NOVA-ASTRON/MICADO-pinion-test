@@ -47,7 +47,7 @@ public:
        const optional_devs *devs;
        std::string name;
        LogFile log = null;
-       std::mutex _lock;
+       std::mutex _lock,_readlock;
 
        DriverDev(QObject *parent = nullptr);
 
@@ -76,10 +76,14 @@ public:
 
        int getNum_sent() const;
 
+       bool getDebug() const;
+       void setDebug(bool value);
+
 private:
        int num_sent=0;
        QByteArray IncomingData;
        bool valid;
+       bool Debug=false;
    };
 
 #endif // DRIVERDEV_H

@@ -42,7 +42,7 @@ static Command readPosA         ={.cmd=_read_pos_A,     .length=sizeof (_read_po
 MotorDriver::MotorDriver(const optional_devs *port, LogFile _log, std::string name)
 {
     InitDriverDev(port, _log, name);
-    //reply_received = 0;
+    reply_received = 0;
 
     position = 0;
 }
@@ -64,9 +64,13 @@ void MotorDriver::incomingbytes(QByteArray arr)
             reply_value_is_negative=false;
             break;
         case 0x3:
-            std::cerr << "Reply : " << reply << " ; " << reply_received  << " " << "\n";
-            if (reply_received==-3 && (reply=="")){
+            if(getDebug()) std::cerr << "Reply : " << reply << " ; " << reply_received  << " " << "\n";
+            if (reply_received==-1 && (reply=="")){
+                break;
+            }
+            if (reply_received <-1) {
                 reply_received=0;
+                break;
             }
             //if (is_ack_message){
             if (reply_received==-1){
@@ -97,7 +101,7 @@ void MotorDriver::incomingbytes(QByteArray arr)
                     break;
 
                 }
-            } else reply_received=4;
+            }
             is_ack_message = false;
             break;
         case 0x6:
@@ -243,26 +247,26 @@ void MotorDriver::Init()
     Reset();
     log->Write("Init Phytron.");
     addHandler();
-    _SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
+    SendCommand(initPhytron, "Error: Init Phytron failed. Serial port not connected.");
 
     SetMicroSteps(94);
-    if (!SendAndWaitForReply(requestState, "Error: Request Phytron state at INIT.",GetStatus))  std::cerr << "WARNING: Could not get status at INIT!!\n";
+    if (!SendAndWaitForReply(requestState, "Error: Request Phytron state at INIT.",GetStatus,false))  std::cerr << "WARNING: Could not get status at INIT!!\n";
     else if (StatusMotorIsRunning)  std::cerr << "WARNING: motor is running at INIT!!\n";
 
 }
 
 void MotorDriver::Reset(int pos)
 {
-    _SendCommand(resetPhytron, "Error: Reset Phytron failed. Serial port not connected.");
+    SendCommand(resetPhytron, "Error: Reset Phytron failed. Serial port not connected.",false);
     // wait 2 seconds for the phytron to properly reset.
-    // msdelay(2000);
+    //msdelay(2000);
     position = pos;
 }
 
 void MotorDriver::Disconnect()
 {
     log->Write("Disable Phytron.");
-    _SendCommand(disablePhytron, "Error: Disable Phytron failed. Serial port not connected.");
+    SendCommand(disablePhytron, "Error: Disable Phytron failed. Serial port not connected.");
     DriverDev::Disconnect();
 }
 
@@ -296,7 +300,7 @@ void MotorDriver::DoSteps(int steps)
     buffer[index++] = 3; // <ETX>
     Command cmd={.cmd=buffer,.length=index};
 
-    _SendCommand(cmd, "Error: Move motor " + value + " steps");
+    SendCommand(cmd, "Error: Move motor " + value + " steps");
     //Thread.Sleep(100);
     //SendCommand(requestState, "Error: Request Phytron state.");
 }
@@ -350,32 +354,31 @@ void MotorDriver::GoToPos(int pos)
     buffer[index++] = 3; // <ETX>
     Command cmd={.cmd=buffer,.length=index};
 
-    _SendCommand(cmd, "Error: Move to position " + value + " mm ");
+    SendCommand(cmd, "Error: Move to position " + value + " mm ");
     //Thread.Sleep(100);
     //SendCommand(requestState, "Error: Request Phytron state.");
 }
 
 void MotorDriver::MoveCWzero()
 {
-    _SendCommand(moveCWZero, "Error: Request move cw zero.");
+    SendCommand(moveCWZero, "Error: Request move cw zero.");
 }
 
 void MotorDriver::MoveCCWzero()
 {
-    _SendCommand(moveCCWZero, "Error: Request move ccw zero.");
+    SendCommand(moveCCWZero, "Error: Request move ccw zero.");
 }
 
 void MotorDriver::DoMOPplus()
 {
-    _SendCommand(MOPplus, "Error: Request MOP+.");
-     StatusM0PositionAchieved=false;
+    StatusM0PositionAchieved=false;
+    SendCommand(MOPplus, "Error: Request MOP+.");
 }
 
 void MotorDriver::DoMOPmin()
 {
-    _SendCommand(MOPmin, "Error: Request MOP-.");
-
     StatusM0PositionAchieved=false;
+    SendCommand(MOPmin, "Error: Request MOP-.",false);
 }
 
 int MotorDriver::ReadEncoderA()
@@ -417,7 +420,7 @@ int MotorDriver::ReadEncoderB()
 
 bool MotorDriver::ReadPosA(float &dest)
 {
-    if (SendAndWaitForReply(readPosA, "Error: Request read Pos A.",FloatPosition,true)){
+    if (SendAndWaitForReply(readPosA, "Error: Request read Pos A.",FloatPosition,false)){
         dest=f_reply_value;
         return true;
     }
@@ -463,23 +466,36 @@ bool MotorDriver::isM0P()
     return StatusM0PositionAchieved;
 }
 
-bool MotorDriver::SendCommand(Command cmd, const char *alttxt)
+bool MotorDriver::SendCommand(Command cmd, std::string alttxt,bool has_reply)
 {
-    if (reply_received==-1) std::cerr << "concurrency detected! :" << alttxt << "\n";
+    lock (_lock2) {
+      if ((reply_received<0)&&getDebug()) {
+         std::cerr << "SendCommand: concurrency detected! :" << alttxt << "\n";
+      }
+      while(reply_received<0){
+          QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+      }
+      if (has_reply) reply_received=-6;
+      _SendCommand(cmd,alttxt);
+      if (has_reply) while(reply_received<0){
+          QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+      }
+    }
 }
 
 bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDriver::ReceiverInterest_t interest, bool isfatal)
 {
-    if (reply_received == -1) {
-        std::cerr << "concurrency detected! :" << alttxt << "\n";
+    if (reply_received <0) {
+        std::cerr << "SendAndWaitForReply: concurrency detected! :" << alttxt << "\n";
         if (isfatal) exit(-1);
         Error=true;
         return false;
     }
     lock (_lock2) {
+        //Skip_timers=true;
         num_requests+=1;
-        if (reply_received == -1) {
-            std::cerr << "concurrency detected during Lock! :" << alttxt << "\n";
+        if (reply_received <0) {
+            std::cerr << "SendAndWaitForReply2: concurrency detected during Lock! :" << alttxt << "\n";
             return false;
         }
 
@@ -503,14 +519,14 @@ bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDri
                 //QCoreApplication::
                 msdelay(step);
             }
-            if (reply_received != -1) return true;
-            reply_received=-2;
+            if (reply_received >0) return true;
+            reply_received=0;
             std::cerr << "Phytron request " << num_requests << " : " << alttxt << " got no reply!\n";
             if (isfatal) exit(-1);
         }
     }
 
-    return (reply_received > -1);
+    return (reply_received > 0);
 }
 
 

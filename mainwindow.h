@@ -94,6 +94,7 @@ private:
 
     testbench_states testbench_main_state;
     testbench_states testbench_next_state;
+    bool STOP_testbench=false;
     float rack_pos=0.0;
 
 };

@@ -132,11 +132,12 @@ void DriverDev::addHandler()
 
 void DriverDev::processincomingbytes()
 {
-    lock (_lock)
+    lock (_readlock)
     {
         if (serial) {
-            IncomingData.append(serial->readAll());
-            incomingbytes(IncomingData);
+            //IncomingData.append(serial->readAll());
+            incomingbytes(serial->readAll());
+
         }
     }
 }
@@ -153,14 +154,16 @@ bool DriverDev::_SendCommand(Command &command, std::string err)
                 serial->write(command.cmd,command.length);
                 retval = true;
                 num_sent+=1;
+                serial->waitForBytesWritten();
+                if (Debug) std::cerr << "Serial: sent command\n";
 
             }
             catch (const std::exception& e)
             {
                 log->Write(err);
-                std::cerr << err <<"\n";
+                if (Debug) std::cerr << err <<"\n";
             }
-        } else std::cerr << "SerialDev(" << name << ") Not present:" << err << "\n";
+        } else if (Debug) std::cerr << "SerialDev(" << name << ") Not present:" << err << "\n";
 
     }
     if (retval == false)
@@ -185,6 +188,16 @@ bool DriverDev::getValid() const
 int DriverDev::getNum_sent() const
 {
     return num_sent;
+}
+
+bool DriverDev::getDebug() const
+{
+    return Debug;
+}
+
+void DriverDev::setDebug(bool value)
+{
+    Debug = value;
 }
 
 void msdelay(int ms)

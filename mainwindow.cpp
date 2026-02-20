@@ -35,6 +35,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 
         if (phytron->getValid()){
+            phytron->setDebug(false);
             phytron->Init();
             ui->MotorSettings->setAutoFillBackground(true);
             ui->MotorSettings->setEnabled(true);
@@ -64,34 +65,42 @@ MainWindow::MainWindow(QWidget *parent)
             this, SLOT(on_testbench_tick()));
     testbench_tick_ms=10;
 
+
+
     //------------------------------------------------------------------------------------------------
     // add Torque sensor
     //------------------------------------------------------------------------------------------------
 
     //TorqueSensorAvailable = TorqueSensor.Setup();
 
-
+#ifdef USE_UPDATES_TIMER
     updatesTimer = new QTimer(this);
     connect(updatesTimer, SIGNAL(timeout()),
             this, SLOT(on_updates_timer()));
 
     updatesTimer->start(50);// 20 Hz
+    connect(this, SIGNAL(destroyed()), updatesTimer, SLOT(stop()));
+#endif
 
     //------------------------------------------------------------------------------------------------
     // process data every 0.1 sec
     //------------------------------------------------------------------------------------------------
-
+#ifdef USE_TIMER_TWO
     timer = new QTimer(this);
     tcount=0;
 
     //------------------------------------------------------------------------------------------------
     // setup signal and slot
     //------------------------------------------------------------------------------------------------
+
+
     connect(timer, SIGNAL(timeout()),
             this, SLOT(on_timer()));
     last_measurement= std::chrono::high_resolution_clock::now();
     timer->start(interval);
+    connect(this, SIGNAL(destroyed()), timer, SLOT(stop()));
 
+#endif
 
     //------------------------------------------------------------------------------------------------
     // Thorlabs camera
@@ -145,8 +154,9 @@ MainWindow::MainWindow(QWidget *parent)
     //------------------------------------------------------------------------------------------------
     // cleanup threads and timers when we are done
     //------------------------------------------------------------------------------------------------
-    connect(this, SIGNAL(destroyed()), timer, SLOT(stop()));
-    connect(this, SIGNAL(destroyed()), updatesTimer, SLOT(stop()));
+
+    testbench_timer->start(testbench_tick_ms);
+
 }
 
 MainWindow::~MainWindow()
@@ -215,7 +225,8 @@ void MainWindow::update_monitoring()
     }
     if (testbench_timer->isActive()&&testbench_main_state==TEST_FINISHED){
         ui->start_run_button->setText("Done. press to start again.");
-        testbench_timer->stop();
+        //testbench_timer->stop();
+        STOP_testbench=true;
         testbench_main_state=TEST_IDLE;
     }
 
@@ -259,9 +270,10 @@ static std::string timePointToString(const Clock::time_point &tp, const std::str
 }
 void MainWindow::on_start_run_button_clicked()
 {
-    if (testbench_timer->isActive()){
+    if (testbench_timer->isActive()&&testbench_main_state!=TEST_IDLE){
         saveImage=false;
-        testbench_timer->stop();
+        STOP_testbench=true;
+        //testbench_timer->stop();
         ui->label_8->setEnabled(false);
         ui->revolutions_counter->setEnabled(false);
         if (phytron) phytron->Move(0); // stop?
@@ -305,7 +317,7 @@ void MainWindow::on_start_run_button_clicked()
             if (testbench_log){
                 testbench_main_state=TEST_MOVE_ZERO; // this will zero the setup and then start with move forward.
                 testbench_total_num_revs=0;
-                testbench_timer->start(testbench_tick_ms);
+                //testbench_timer->start(testbench_tick_ms);
                 ui->start_run_button->setText("STOP");
             }
         }
@@ -342,6 +354,7 @@ void MainWindow::on_testbench_tick()
 {
     sync_cnt=sync_cnt+1;
     if (test_bench_busy) return;
+    if (updates_busy) return;
     test_bench_busy=true;
 
     if(sync_cnt>=5) {
@@ -349,63 +362,27 @@ void MainWindow::on_testbench_tick()
         sync_cnt=0;
     }
 
+    if (STOP_testbench){
+        testbench_main_state=TEST_IDLE;
+        STOP_testbench=false;
+    }
+
     switch(testbench_main_state){
     case TEST_IDLE:
         break;
     case TEST_FINISHED:
+        std::cerr << "TestBench: Finished\n";
         break;
     case TEST_CCW_ZERO:
-        backgroundMeasurements.start_measurements=true;
-        if (phytron){
-            phytron->MoveCCWzero();
-        }
-        if (ui->motor_CW_radioButton->isChecked())
-            testbench_next_state=TEST_CW_LONG;
-        else
-            testbench_next_state=TEST_CCW_LONG;
-        break;
     case TEST_CW_ZERO:
-        backgroundMeasurements.start_measurements=true;
-        if (phytron){
-            phytron->MoveCWzero();
-        }
-        if (ui->motor_CW_radioButton->isChecked())
-            testbench_next_state=TEST_CW_LONG;
-        else
-            testbench_next_state=TEST_CCW_LONG;
-        break;
     case TEST_CW_LONG:
     case TEST_CCW_LONG:
-        backgroundMeasurements.start_measurements=true;
-        if (phytron){
-            int steps = 150;//ui->motor_revolutions_per_direction_spinBox->value()*200*1.591549431;
-                std::stringstream ss;
-                ss << "Step at: " << testbench_total_num_revs+ui->motor_revolutions_per_direction_spinBox->value() << "\n";
-                phytron_log->Write(ss.str());
-            if (testbench_main_state==TEST_CCW_LONG) steps=-steps;
-            phytron->Move(steps);
-
-            if (cam_valid && ui->CaptureImagesDuringRotation->isChecked()){
-                if ((vidCycles%ui->video_cycle_spinBox->value())==0){
-                    vidStartTime=QDateTime::currentDateTime();
-                    //saveImage=true;
-                    movie_capture_busy=true;
-                    cam.start_movie_capture();
-                    printf("Movie capture started! \r\n");
-                }
-                vidCycles++;
-            }
-        }
-
-        testbench_total_num_revs+=ui->motor_revolutions_per_direction_spinBox->value();
-        testbench_next_state=(testbench_main_state==TEST_CW_LONG)?TEST_CCW_LONG:TEST_CW_LONG;
-
-
-        num_not_changed=0;
-        testbench_main_state=TEST_WAIT_PHYTRON;
+        std::cerr << "TestBench: Unsupported State\n";
+        testbench_main_state=TEST_FINISHED;
         break;
     case TEST_MOVE_FORWARD:
     case TEST_MOVE_BACKWARDS:
+        std::cerr << "TestBench: Finished\n";
         backgroundMeasurements.start_measurements=true;
         if (phytron){
             int steps = ui->motor_revolutions_per_direction_spinBox->value();//ui->motor_revolutions_per_direction_spinBox->value()*200*1.591549431;
