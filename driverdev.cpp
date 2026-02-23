@@ -135,8 +135,10 @@ void DriverDev::processincomingbytes()
     lock (_readlock)
     {
         if (serial) {
+            //std::cerr << "process incoming bytes\n";
             //IncomingData.append(serial->readAll());
             incomingbytes(serial->readAll());
+            //std::cerr << "DONE process incoming bytes\n";
 
         }
     }
@@ -156,7 +158,6 @@ bool DriverDev::_SendCommand(Command &command, std::string err)
                 num_sent+=1;
                 serial->waitForBytesWritten();
                 if (Debug) std::cerr << "Serial: sent command\n";
-
             }
             catch (const std::exception& e)
             {

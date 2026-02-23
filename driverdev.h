@@ -44,7 +44,7 @@ class DriverDev : public QObject
         Q_OBJECT
 public:
        QSerialPort *serial = null;
-       const optional_devs *devs;
+       const optional_devs *devs= null;
        std::string name;
        LogFile log = null;
        std::mutex _lock,_readlock;
@@ -81,7 +81,7 @@ public:
 
 private:
        int num_sent=0;
-       QByteArray IncomingData;
+       //QByteArray IncomingData;
        bool valid;
        bool Debug=false;
    };

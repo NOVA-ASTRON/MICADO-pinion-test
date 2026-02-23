@@ -115,16 +115,9 @@ MainWindow::MainWindow(QWidget *parent)
             cam_valid = false;
         }
     } else {
-
         ui->image_camera_livestream->setText("!! NO CAMERA DETECTED !!");
     }
-    ui->camera_exp_time_spinBox->setEnabled(cam_valid);
-    ui->video_duration_spinBox->setEnabled(cam_valid);
-    ui->video_cycle_spinBox->setEnabled(cam_valid);
-    ui->CaptureImagesDuringRotation->setEnabled(cam_valid);
-    ui->label_9->setEnabled(cam_valid);
-    ui->label_13->setEnabled(cam_valid);
-    ui->label_21->setEnabled(cam_valid);
+
 
     //------------------------------------------------------------------------------------------------
     // image capture timer
@@ -138,8 +131,21 @@ MainWindow::MainWindow(QWidget *parent)
         // setup signal and slot
         connect(camtimer, SIGNAL(timeout()),
                 this, SLOT(on_camera()));
-        camtimer->start(20);
+        camtimer->start(50);
     }
+
+    //------------------------------------------------------------------------------------------------
+    // disable camera settings if no camera
+    //------------------------------------------------------------------------------------------------
+
+    ui->camera_exp_time_spinBox->setEnabled(cam_valid);
+    ui->video_duration_spinBox->setEnabled(cam_valid);
+    ui->video_cycle_spinBox->setEnabled(cam_valid);
+    ui->CaptureImagesDuringRotation->setEnabled(cam_valid);
+    ui->label_9->setEnabled(cam_valid);
+    ui->label_13->setEnabled(cam_valid);
+    ui->label_21->setEnabled(cam_valid);
+
 
     //------------------------------------------------------------------------------------------------
     ui->label_8->setEnabled(false);
@@ -149,6 +155,8 @@ MainWindow::MainWindow(QWidget *parent)
     // start background thread
     //------------------------------------------------------------------------------------------------
 
+    backgroundMeasurements.setRequested_sample_time(ui->sampling_time->value());
+    backgroundMeasurements.setDebug(true);
     backgroundMeasurements.start();
 
     //------------------------------------------------------------------------------------------------
@@ -156,11 +164,12 @@ MainWindow::MainWindow(QWidget *parent)
     //------------------------------------------------------------------------------------------------
 
     testbench_timer->start(testbench_tick_ms);
-
+    Debug=false;
 }
 
 MainWindow::~MainWindow()
 {
+    std::cerr << " MANWINDOW EXIT!\n";
     backgroundMeasurements.exit = true;
     backgroundMeasurements.wait();
     if(phytron) delete phytron;
@@ -171,32 +180,32 @@ MainWindow::~MainWindow()
 void MainWindow::update_monitoring()
 {
     // hopefully this has no real impact on the measurement thread.
+    if (Debug) std::cerr <<"STARTING update_monitoring()\n";
 
     backgroundMeasurements.StampWD();
-    phytron->ReadStatus();
+    if (phytron){
 
-    if (!M0Pachieved && phytron && phytron->isM0P()){
-        M0Pachieved=true;
-        QPalette pa = ui->doCWindex->palette();
-        pa.setColor(QPalette::Button,QColor(Qt::green));
-        ui->doCWindex->setAutoFillBackground(true);
-        ui->doCWindex->setPalette(pa);
-        ui->doCWindex->update();
-    }
-    if (M0Pachieved && phytron && !phytron->isM0P()){
-        M0Pachieved=false;
-        QPalette pa = ui->doCWindex->palette();
-        pa.setColor(QPalette::Button,QColor(Qt::red));
-        ui->doCWindex->setAutoFillBackground(true);
-        ui->doCWindex->setPalette(pa);
-        ui->doCWindex->update();
-    }
+        phytron->ReadStatus();
 
 
-    if (backgroundMeasurements.running) {
-        ui->encoderBValue->setText("NOVALUE");
-        return;
+        if (!M0Pachieved && phytron->isM0P()){
+            M0Pachieved=true;
+            QPalette pa = ui->doCWindex->palette();
+            pa.setColor(QPalette::Button,QColor(Qt::green));
+            ui->doCWindex->setAutoFillBackground(true);
+            ui->doCWindex->setPalette(pa);
+            ui->doCWindex->update();
+        }
+        if (M0Pachieved && !phytron->isM0P()){
+            M0Pachieved=false;
+            QPalette pa = ui->doCWindex->palette();
+            pa.setColor(QPalette::Button,QColor(Qt::red));
+            ui->doCWindex->setAutoFillBackground(true);
+            ui->doCWindex->setPalette(pa);
+            ui->doCWindex->update();
+        }
     }
+
 
     QLCDNumber * ref[]={
         nullptr,
@@ -223,12 +232,13 @@ void MainWindow::update_monitoring()
         } else ui->encoderBValue->setText("--??--");
 
     }
-    if (testbench_timer->isActive()&&testbench_main_state==TEST_FINISHED){
+    if (testbench_timer && testbench_timer->isActive()&&testbench_main_state==TEST_FINISHED){
         ui->start_run_button->setText("Done. press to start again.");
         //testbench_timer->stop();
         STOP_testbench=true;
         testbench_main_state=TEST_IDLE;
     }
+    if (Debug) std::cerr <<"DONE update_monitoring()\n";
 
 }
 static int seq=0;
@@ -270,7 +280,7 @@ static std::string timePointToString(const Clock::time_point &tp, const std::str
 }
 void MainWindow::on_start_run_button_clicked()
 {
-    if (testbench_timer->isActive()&&testbench_main_state!=TEST_IDLE){
+    if (testbench_timer && testbench_timer->isActive()&&testbench_main_state!=TEST_IDLE){
         saveImage=false;
         STOP_testbench=true;
         //testbench_timer->stop();
@@ -306,6 +316,12 @@ void MainWindow::on_start_run_button_clicked()
             imgDir = fi.absolutePath();
             testbench_log=new LogFile_t(filename.toStdString());
 
+            if (backgroundMeasurements.isRunning()==false){
+                backgroundMeasurements.StampWD();
+
+                backgroundMeasurements.start();
+            }
+
             /*
             if (testbench_log){
                 testbench_main_state=ui->motor_anti_CW_radioButton->isChecked()?TEST_CCW_LONG:TEST_CW_LONG;
@@ -326,6 +342,7 @@ void MainWindow::on_start_run_button_clicked()
 
 void MainWindow::on_timer()
 {
+    if (Debug)     std::cerr <<"STARTING on_timer()\n";
     if (saveImage) {
         auto time_running = QDateTime::currentSecsSinceEpoch()-vidStartTime.toSecsSinceEpoch();
         if (time_running>=ui->video_duration_spinBox->value()) {
@@ -333,30 +350,37 @@ void MainWindow::on_timer()
             printf("No image saved! \r\n");
         }
     }
+    if (Debug)  std::cerr <<"DONE on_timer()\n";
 }
 
 void MainWindow::on_updates_timer()
 {
+    if (Debug) std::cerr <<"STARTING on_updates_timer()\n";
 
     backgroundMeasurements.StampWD();
     if (updates_busy) return;
     updates_busy=true;
     if(!test_bench_busy) update_monitoring();
     updates_busy=false;
+    if (Debug) std::cerr <<"DONE on_updates_timer()\n";
 }
 
 void MainWindow::on_camera()
 {
+    if (Debug) std::cerr <<"STARTING on_camera()\n";
     update_cam_image();
+    if (Debug) std::cerr <<"Done on_camera()\n";
 }
 
 void MainWindow::on_testbench_tick()
 {
+    if (Debug) std::cerr <<"STARTING on_testbench_tick()\n";
     sync_cnt=sync_cnt+1;
     if (test_bench_busy) return;
     if (updates_busy) return;
     test_bench_busy=true;
 
+    if (Debug) std::cerr <<"DOING on_testbench_tick()\n";
     if(sync_cnt>=5) {
         update_monitoring();
         sync_cnt=0;
@@ -371,7 +395,7 @@ void MainWindow::on_testbench_tick()
     case TEST_IDLE:
         break;
     case TEST_FINISHED:
-        std::cerr << "TestBench: Finished\n";
+        if (Debug) std::cerr << "TestBench: Finished\n";
         break;
     case TEST_CCW_ZERO:
     case TEST_CW_ZERO:
@@ -382,13 +406,13 @@ void MainWindow::on_testbench_tick()
         break;
     case TEST_MOVE_FORWARD:
     case TEST_MOVE_BACKWARDS:
-        std::cerr << "TestBench: Finished\n";
+        if (Debug) std::cerr << "TestBench: TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
         backgroundMeasurements.start_measurements=true;
         if (phytron){
             int steps = ui->motor_revolutions_per_direction_spinBox->value();//ui->motor_revolutions_per_direction_spinBox->value()*200*1.591549431;
                 std::stringstream ss;
                 ss << "Step at: " << testbench_total_num_revs+1 << "\n";
-                phytron_log->Write(ss.str());
+                if (phytron_log) phytron_log->Write(ss.str());
             if (testbench_main_state==TEST_MOVE_BACKWARDS)
                 steps=0;
             phytron->GoToPos(steps); // absolute position in mm
@@ -411,6 +435,8 @@ void MainWindow::on_testbench_tick()
 
         num_not_changed=0;
         testbench_main_state=TEST_WAIT_PHYTRON;
+        if (Debug) std::cerr << "TestBench: Done TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
+
         break;
 
     case TEST_MOVE_ZERO:
@@ -425,6 +451,7 @@ void MainWindow::on_testbench_tick()
         break;
 
     case TEST_WAIT_PHYTRON:
+        if (Debug) std::cerr << "TEST_WAIT_PHYTRON started\n";
         // we should make sure that reading out the phytron is done
         // without interfering the readout of the position..
         if (movie_capture_busy) {
@@ -448,6 +475,9 @@ void MainWindow::on_testbench_tick()
             */
             if (phytron->IsMotorRunning("Is motor running during TEST_WAIT_PHYTRON")) break;
         }
+
+        // The movement has finished here
+
         if (movie_capture_busy) {
             cam.stop_movie_capture();
             movie_capture_busy=false;
@@ -464,16 +494,21 @@ void MainWindow::on_testbench_tick()
         testbench_main_state=TEST_WAIT_TIME;
         testbench_wait_start = QDateTime::currentDateTime();
         testbench_waited_ms = testbench_tick_ms;
+        if (Debug) std::cerr << "TEST_WAIT_PHYTRON finished\n";
         break;
     case TEST_WAIT_TIME:
-        if (phytron->IsMotorRunning("is motor running during TEST_WAIT_TIME")) break;
+        if (Debug) std::cerr << "TEST_WAIT_TIME iteration\n";
+        if (phytron && phytron->IsMotorRunning("is motor running during TEST_WAIT_TIME")) break;
+
         if (backgroundMeasurements.num_measurements>0){
             // save our test data
+            std::cerr << "TEST_WAIT_TIME save data\n";
             if (testbench_log){
                 store_measurements(testbench_log,backgroundMeasurements.measurements,backgroundMeasurements.num_measurements);
             }
             backgroundMeasurements.num_measurements=0;
-        }
+            std::cerr << "TEST_WAIT_TIME save data DONE\n";
+        } else std::cerr << "TEST_WAIT_TIME backgroundMeasurements.num_measurements=0\n";
 
         if (movie_capture_save){
             movie_capture_save=false;
@@ -483,6 +518,7 @@ void MainWindow::on_testbench_tick()
         testbench_waited_ms = std::abs(testbench_wait_start.msecsTo(QDateTime::currentDateTime()));
         if (testbench_waited_ms>=ui->pause_time_spinBox->value()*1000){
             testbench_main_state=testbench_next_state;
+            if (Debug) std::cerr << "TEST_WAIT_TIME finished\n";
             if (testbench_total_num_revs>=ui->motor_total_revolutions_spinBox->value()) {
                 testbench_main_state = TEST_FINISHED;
                 testbench_log->close();
@@ -494,11 +530,12 @@ void MainWindow::on_testbench_tick()
         break;
     }
     test_bench_busy=false;
+    if (Debug) std::cerr <<"DONE on_testbench_tick()\n";
 }
 
 void MainWindow::on_camera_exp_time_spinBox_valueChanged(int arg1)
 {
-    cam.setExposure(arg1*1000);
+    if (cam_valid) cam.setExposure(arg1*1000);
 }
 
 void MainWindow::on_sampling_time_editingFinished()
@@ -506,12 +543,13 @@ void MainWindow::on_sampling_time_editingFinished()
     //timer->stop();
 
     interval = ui->sampling_time->value();
+    backgroundMeasurements.setRequested_sample_time(interval*1000);
     //timer->start(ui->sampling_time->value());
 }
 
 void MainWindow::store_measurements(LogFile  where, sample *samp, int num_samples)
 {
-    if (where) {
+    if (where && samp) {
         for (int s=0;s<num_samples;s+=1) {
             std::stringstream ss;
             ss << samp[s].stamp << ",";
@@ -527,13 +565,15 @@ void MainWindow::store_measurements(LogFile  where, sample *samp, int num_sample
 
 void MainWindow::store_movie()
 {
-    for (int i=0;i<cam.getMovieSize();i+=1){
-        QImage * frame = cam.getMovieFrame(i);
-        QDateTime stamp = cam.getMovieStamp(i);
-        if (frame){
-            QString frame_name = imgDir + "/imgframe" + QString::number(stamp.toMSecsSinceEpoch()) +".png";
-            frame->save(frame_name,"PNG");
-            printf("Image is saved! \r\n");
+    if (cam_valid){
+        for (int i=0;i<cam.getMovieSize();i+=1){
+            QImage * frame = cam.getMovieFrame(i);
+            QDateTime stamp = cam.getMovieStamp(i);
+            if (frame){
+                QString frame_name = imgDir + "/imgframe" + QString::number(stamp.toMSecsSinceEpoch()) +".png";
+                frame->save(frame_name,"PNG");
+                printf("Image is saved! \r\n");
+            }
         }
     }
 

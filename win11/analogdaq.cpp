@@ -50,6 +50,7 @@ int AnalogDAQ::Setup()
 
 float AnalogDAQ::get_AD(int channel)
 {
+    std::cerr << "get_AD(" << channel << ")\n";
     /*Parameters:
             BoardNum    :number used by CB.CFG to describe this board
             Chan        :input channel number
@@ -63,6 +64,7 @@ float AnalogDAQ::get_AD(int channel)
         return HighResEngUnits;
     }
     ULStat = cbVIn(BoardNum, channel, Range, &EngUnits, Options);
+    std::cerr << "DONE get_AD(" << channel << ")\n";
     return EngUnits;
 }
 

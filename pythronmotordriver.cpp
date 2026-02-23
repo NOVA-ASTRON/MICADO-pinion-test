@@ -270,6 +270,9 @@ void MotorDriver::Disconnect()
     DriverDev::Disconnect();
 }
 
+static const int BUF_SIZE = 256;
+
+
 void MotorDriver::DoSteps(int steps)
 {
     char plusmin = '+';
@@ -288,19 +291,19 @@ void MotorDriver::DoSteps(int steps)
     std::string value = std::to_string(steps * microsteps);
 
     // assemble command
-    char * buffer = new char[value.length() + 5];
+    char buffer[BUF_SIZE];// new char[value.length() + 10];
     int index = 0;
     buffer[index++] = 2; // <STX>
     buffer[index++] = (0x30); // address phytron
     buffer[index++] = ('X'); // Rotate motor with ammount of steps
     buffer[index++] = (plusmin);
-    for (unsigned int i = 0; i < value.length(); i++)
+    for (unsigned int i = 0; (i < value.length()) && index<BUF_SIZE; i++)
         buffer[index++] = (value[i]);
-
-    buffer[index++] = 3; // <ETX>
-    Command cmd={.cmd=buffer,.length=index};
-
-    SendCommand(cmd, "Error: Move motor " + value + " steps");
+    if (index < BUF_SIZE) buffer[index++] = 3; // <ETX>
+    if (index < BUF_SIZE){
+        Command cmd={.cmd=buffer,.length=index};
+        SendCommand(cmd, "Error: Move motor " + value + " steps");
+    }
     //Thread.Sleep(100);
     //SendCommand(requestState, "Error: Request Phytron state.");
 }
@@ -335,28 +338,25 @@ void MotorDriver::GoToPos(int pos)
     totalsteps += abs(position-pos);
     position = pos;
 
-    pos+=4; // relatve to MOP-
-
-
+    //pos+=4; // relatve to MOP-
     std::string value = std::to_string(pos);
 
     // assemble command
-    char * buffer = new char[value.length() + 5];
+    char buffer[BUF_SIZE];// = new char[value.length() +10];
     int index = 0;
     buffer[index++] = 2; // <STX>
     buffer[index++] = (0x30); // address phytron
     buffer[index++] = ('X'); // Move to position
     buffer[index++] = ('A'); // Absolute
     buffer[index++] = (plusmin);
-    for (unsigned int i = 0; i < value.length(); i++)
+    for (unsigned int i = 0; (i < value.length()) && index<BUF_SIZE; i++)
         buffer[index++] = (value[i]);
 
-    buffer[index++] = 3; // <ETX>
-    Command cmd={.cmd=buffer,.length=index};
-
-    SendCommand(cmd, "Error: Move to position " + value + " mm ");
-    //Thread.Sleep(100);
-    //SendCommand(requestState, "Error: Request Phytron state.");
+    if (index < BUF_SIZE) buffer[index++] = 3; // <ETX>
+    if (index < BUF_SIZE){
+        Command cmd={.cmd=buffer,.length=index};
+        SendCommand(cmd, "Error: Move to position " + value + " mm ",true);
+    }
 }
 
 void MotorDriver::MoveCWzero()
@@ -468,19 +468,43 @@ bool MotorDriver::isM0P()
 
 bool MotorDriver::SendCommand(Command cmd, std::string alttxt,bool has_reply)
 {
+    bool ret=false;
     lock (_lock2) {
-      if ((reply_received<0)&&getDebug()) {
-         std::cerr << "SendCommand: concurrency detected! :" << alttxt << "\n";
-      }
-      while(reply_received<0){
-          QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
-      }
-      if (has_reply) reply_received=-6;
-      _SendCommand(cmd,alttxt);
-      if (has_reply) while(reply_received<0){
-          QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
-      }
+        if ((reply_received<0)&&getDebug()) {
+            std::cerr << "SendCommand: concurrency detected! :" << alttxt << "\n";
+        }
+        int num_waits=0;
+        while(reply_received<0 && num_waits<100){
+            msdelay(10);
+            num_waits+=1;
+        }
+        if (has_reply) reply_received=-6;
+        ret=_SendCommand(cmd,alttxt);
+        if (ret){
+
+            if (has_reply){
+                ret=false;
+                auto start = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::high_resolution_clock::now().time_since_epoch())
+                        .count();
+                auto  now = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::high_resolution_clock::now().time_since_epoch())
+                        .count();
+                while(reply_received<0 && (now-start)<10000)
+                {
+                    msdelay(1);
+
+                    now = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::high_resolution_clock::now().time_since_epoch())
+                            .count();
+                }
+
+                reply_received=0;
+            }
+            ret=true;
+        } else reply_received=0;
     }
+    return ret;
 }
 
 bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDriver::ReceiverInterest_t interest, bool isfatal)
@@ -499,10 +523,11 @@ bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDri
             return false;
         }
 
+        // wait for queue to be empty
         auto t = GetDeviceState();
         if (!t.queue_empty){
             while(!t.queue_empty){
-                QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
+                msdelay(1);
                 t = GetDeviceState();
             }
         }
@@ -514,9 +539,7 @@ bool MotorDriver::SendAndWaitForReply(Command cmd, char const * alttxt, MotorDri
         if (reply_received == -1){
             //wait up to 200ms for confirmation
             int step = 10;
-            for (int ms=0;(ms<400) && (reply_received == -1);ms+=1) {
-                QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
-                //QCoreApplication::
+            for (int ms=0;(ms<50) && (reply_received == -1);ms+=1) {
                 msdelay(step);
             }
             if (reply_received >0) return true;

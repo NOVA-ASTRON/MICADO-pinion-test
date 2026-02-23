@@ -59,8 +59,8 @@ private:
     qreal min,max;
     MotorDriver *phytron;
     LogFile phytron_log;
-    AnalogDAQ TorqueSensor;
-    bool TorqueSensorAvailable;
+    //AnalogDAQ TorqueSensor;
+    //bool TorqueSensorAvailable;
 
     QPixmap camera_pixmap;
     ThorlabsCamera cam;
@@ -96,6 +96,8 @@ private:
     testbench_states testbench_next_state;
     bool STOP_testbench=false;
     float rack_pos=0.0;
+
+    bool Debug;
 
 };
 #endif // MAINWINDOW_H

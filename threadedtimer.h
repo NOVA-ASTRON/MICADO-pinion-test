@@ -78,12 +78,17 @@ public:
 
     void StampWD();
 
+    void setDebug(volatile bool value);
+
+    void setRequested_sample_time(const uint64_t &value);
+
 public slots:
     void unit_of_work();
 protected:
     void run();
 private:
     void watchdog();
+    volatile bool Debug;
 
 };
 
