@@ -310,7 +310,7 @@ void MotorDriver::DoSteps(int steps)
 
 bool MotorDriver::IsMotorRunning(char const * reftxt)
 {
-    //if (SendAndWaitForReply(requestState, reftxt,GetStatus,true))
+    if (SendAndWaitForReply(requestState, reftxt,GetStatus,true))
         return (StatusMotorIsRunning);
 
     //return true;

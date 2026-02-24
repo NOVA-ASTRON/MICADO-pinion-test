@@ -3,6 +3,18 @@
 #include <chrono>
 #define lock(mut) const std::lock_guard<std::mutex> lock(mut)
 
+static uint64_t Now(){
+    return std::chrono::high_resolution_clock::now().time_since_epoch().count();
+}
+static int64_t Sec(uint64_t t){
+    return 1000000000ULL*t;
+}
+static int64_t mSec(uint64_t t){
+    return 1000000ULL*t;
+}
+static int64_t uSec(uint64_t t){
+    return 1000ULL*t;
+}
 threadedTimer::threadedTimer()
 {
     measurements = new sample[MAX_SAMPLES];
@@ -19,7 +31,7 @@ threadedTimer::threadedTimer()
 
 void threadedTimer::setRequested_sample_time(const uint64_t &value)
 {
-    requested_sample_time = value*1000000ULL;
+    requested_sample_time = mSec(value);
 }
 
 void threadedTimer::DoRequest(Request ask)
@@ -31,9 +43,7 @@ void threadedTimer::StampWD()
 {
     lock(wdmutex);
     exit=false;
-    watchdogstamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::high_resolution_clock::now().time_since_epoch())
-                .count();
+    watchdogstamp = Now();
 }
 
 void threadedTimer::unit_of_work()
@@ -42,9 +52,7 @@ void threadedTimer::unit_of_work()
     //  compute delay to match requested sample time
     // --------------------------------------------
 
-    uint64_t stamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::high_resolution_clock::now().time_since_epoch())
-                .count();
+    uint64_t stamp = Now();
     //long long stamp = ns;//std::chrono::steady_clock::now().time_since_epoch().count();
     //uint64_t dtime = stamp-start_of_measurements;
 
@@ -99,8 +107,11 @@ void threadedTimer::unit_of_work()
     // store the sample if there is room left
     // --------------------------------------------
 
-    if (running && sample_index<MAX_SAMPLES)
+    if (running && sample_index<MAX_SAMPLES){
+        std::cerr <<"Add sample " << sample_index << "\n";
         measurements[sample_index++]=curr_sample;
+        num_measurements=sample_index;
+    }
 
     // --------------------------------------------
     //  handle requests and act according to flags
@@ -109,12 +120,14 @@ void threadedTimer::unit_of_work()
 
     switch (request){
     case REQ_START_MEASUREMENTS:
+        std::cerr << "Start measure\n";
         request=REQ_IDLE;
         if (running) break;
         running=true;
         sample_index=0;
         break;
     case REQ_STOP_MEASUREMENTS:
+        std::cerr << "Stop measure\n";
         request=REQ_IDLE;
         if (!running) break;
         num_measurements=sample_index;
@@ -129,9 +142,7 @@ void threadedTimer::unit_of_work()
 void threadedTimer::run()
 {
     // prime our timings on 1ms sample time.
-    last_measurement_time=std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::high_resolution_clock::now().time_since_epoch())
-                .count();//std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    last_measurement_time=Now();
     next_measurement_time=last_measurement_time+requested_sample_time;
     StampWD();
     std::cerr << "THREAD STARTED!\n";
@@ -147,11 +158,11 @@ void threadedTimer::watchdog()
 {
     lock(wdmutex);
 
-    uint64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-    if ((now-watchdogstamp)>5000000000ULL) // 5 seconds watchdog
+    uint64_t WDtime = Now() - watchdogstamp;
+    if (WDtime>Sec(120)) // 5 seconds watchdog
     {
-        exit=true;
-        std::cerr << "WatchDog triggered!!\n";
+        //exit=true;
+        std::cerr << "WatchDog triggered!! :" << std::chrono::seconds(120).count() << "\n";
     }
 }
 
