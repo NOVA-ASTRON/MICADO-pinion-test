@@ -313,8 +313,7 @@ bool MotorDriver::IsMotorRunning(char const * reftxt)
     if (SendAndWaitForReply(requestState, reftxt,GetStatus,true))
         return (StatusMotorIsRunning);
 
-    //return true;
-
+    return false;
 }
 
 void MotorDriver::Move(int pos)
@@ -381,8 +380,13 @@ void MotorDriver::DoMOPmin()
     SendCommand(MOPmin, "Error: Request MOP-.",false);
 }
 
-int MotorDriver::ReadEncoderA()
+bool MotorDriver::ReadEncoderA(int & dest)
 {
+    if (SendAndWaitForReply(readEncoderA, "Error: Request read Pos A.",IntPosition,false)){
+        dest=reply_value;
+        return true;
+    }
+
     /*
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
     replyreceived = -1;
@@ -395,11 +399,16 @@ int MotorDriver::ReadEncoderA()
         if ((replyreceived == 0) && reply_is_value) return reply_value;
     }
     */
-    return 0;
+    return false;
 }
 
-int MotorDriver::ReadEncoderB()
+bool MotorDriver::ReadEncoderB(int & dest)
 {
+    if (SendAndWaitForReply(readEncoderB, "Error: Request read Pos A.",IntPosition,false)){
+        dest=reply_value;
+        return true;
+    }
+
     /*
     //QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 1);
     reply_received = -1;
@@ -415,7 +424,7 @@ int MotorDriver::ReadEncoderB()
         if ((reply_received == 0) && reply_is_value) return reply_value;
     }
     */
-    return 0;
+    return false;
 }
 
 bool MotorDriver::ReadPosA(float &dest)

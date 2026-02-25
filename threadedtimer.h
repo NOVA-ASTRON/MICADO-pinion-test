@@ -13,6 +13,7 @@ typedef struct {
     uint64_t stamp;
     qreal val[4];
     float phytron_pos;
+    int encoder_pos;
 } sample;
 
 typedef enum {
@@ -47,6 +48,7 @@ public:
     // ---------------------------------
     volatile int num_measurements;
     volatile float phytron_position;
+    volatile int encoder_position;
     int sample_index;
     unsigned int runcount;
     sample *measurements;

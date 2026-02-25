@@ -20,7 +20,7 @@
       <x>20</x>
       <y>20</y>
       <width>501</width>
-      <height>751</height>
+      <height>681</height>
      </rect>
     </property>
     <property name="title">
@@ -112,7 +112,7 @@
        <set>Qt::AlignCenter</set>
       </property>
       <property name="maximum">
-       <number>160000</number>
+       <number>400000</number>
       </property>
       <property name="value">
        <number>4</number>
@@ -141,7 +141,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Pause time (sec)</string>
+       <string>Pause time (milli seconds)</string>
       </property>
      </widget>
      <widget class="QSpinBox" name="pause_time_spinBox">
@@ -156,17 +156,20 @@
       <property name="alignment">
        <set>Qt::AlignCenter</set>
       </property>
+      <property name="minimum">
+       <number>100</number>
+      </property>
       <property name="maximum">
-       <number>1300000</number>
+       <number>20000</number>
       </property>
       <property name="singleStep">
-       <number>1</number>
+       <number>100</number>
       </property>
       <property name="stepType">
        <enum>QAbstractSpinBox::DefaultStepType</enum>
       </property>
       <property name="value">
-       <number>1</number>
+       <number>100</number>
       </property>
      </widget>
     </widget>
@@ -321,7 +324,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>610</y>
+       <y>570</y>
        <width>111</width>
        <height>61</height>
       </rect>
@@ -334,7 +337,7 @@
      <property name="geometry">
       <rect>
        <x>40</x>
-       <y>680</y>
+       <y>640</y>
        <width>71</width>
        <height>32</height>
       </rect>
@@ -346,9 +349,9 @@
     <widget class="QLabel" name="encoderBValue">
      <property name="geometry">
       <rect>
-       <x>170</x>
-       <y>680</y>
-       <width>71</width>
+       <x>130</x>
+       <y>640</y>
+       <width>181</width>
        <height>32</height>
       </rect>
      </property>
@@ -360,7 +363,7 @@
      <property name="geometry">
       <rect>
        <x>140</x>
-       <y>610</y>
+       <y>570</y>
        <width>111</width>
        <height>61</height>
       </rect>
@@ -376,7 +379,7 @@
      <property name="geometry">
       <rect>
        <x>320</x>
-       <y>540</y>
+       <y>500</y>
        <width>161</width>
        <height>71</height>
       </rect>
@@ -392,7 +395,7 @@
      <property name="geometry">
       <rect>
        <x>320</x>
-       <y>630</y>
+       <y>590</y>
        <width>161</width>
        <height>71</height>
       </rect>
@@ -574,9 +577,9 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>770</y>
+      <y>720</y>
       <width>501</width>
-      <height>221</height>
+      <height>271</height>
      </rect>
     </property>
     <property name="title">
@@ -630,6 +633,19 @@
        <number>0</number>
       </property>
      </widget>
+    </widget>
+    <widget class="QLabel" name="TimeLeft">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>230</y>
+       <width>431</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Time Left:</string>
+     </property>
     </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_4">

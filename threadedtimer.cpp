@@ -6,13 +6,13 @@
 static uint64_t Now(){
     return std::chrono::high_resolution_clock::now().time_since_epoch().count();
 }
-static int64_t Sec(uint64_t t){
+static uint64_t Sec(uint64_t t){
     return 1000000000ULL*t;
 }
-static int64_t mSec(uint64_t t){
+static uint64_t mSec(uint64_t t){
     return 1000000ULL*t;
 }
-static int64_t uSec(uint64_t t){
+static uint64_t uSec(uint64_t t){
     return 1000ULL*t;
 }
 threadedTimer::threadedTimer()
@@ -78,12 +78,13 @@ void threadedTimer::unit_of_work()
                 TorqueSensor.get_AD(1),
                 TorqueSensor.get_AD(2),
                 TorqueSensor.get_AD(3),
-            },phytron_position,
+            },phytron_position,encoder_position,
         };
     } else {
        curr_sample.stamp=stamp;
        curr_sample.val[0]=TorqueSensor.get_AD(0);
        curr_sample.phytron_pos=phytron_position;
+       curr_sample.encoder_pos=encoder_position;
        if (Debug) std::cerr << "Get sample br2 "<< curr_sample.val[0] << "\n";
     }
     runcount=(runcount+1)&1023;

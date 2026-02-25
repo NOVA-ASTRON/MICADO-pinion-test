@@ -55,8 +55,8 @@ public:
        void DoMOPmin();
 
 
-       int ReadEncoderA();
-       int ReadEncoderB();
+       bool ReadEncoderA(int &dest);
+       bool ReadEncoderB(int & dest);
 
        bool ReadPosA(float& dest);
        bool ReadStatus();

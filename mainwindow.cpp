@@ -14,6 +14,14 @@
 static const int num_samples=25;
 auto last_measurement=std::chrono::high_resolution_clock::now();
 
+const int DEBUG_ALL            = 255;
+const int DEBUG_NONE           = 0;
+const int DEBUG_TIMERS         = 1;
+const int DEBUG_STATE_MACHINE  = 2;
+const int DEBUG_SHOW_LEAVES    = 4;
+
+#define ON_DEBUG( Dstate ) if ((Debug & (Dstate))==(Dstate))
+
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -164,7 +172,7 @@ MainWindow::MainWindow(QWidget *parent)
     //------------------------------------------------------------------------------------------------
 
     testbench_timer->start(testbench_tick_ms);
-    Debug=false;
+    Debug=0;
 }
 
 MainWindow::~MainWindow()
@@ -180,7 +188,7 @@ MainWindow::~MainWindow()
 void MainWindow::update_monitoring()
 {
     // hopefully this has no real impact on the measurement thread.
-    if (Debug) std::cerr <<"STARTING update_monitoring()\n";
+    ON_DEBUG( DEBUG_SHOW_LEAVES ) std::cerr <<"STARTING update_monitoring()\n";
 
     backgroundMeasurements.StampWD();
     if (phytron){
@@ -227,7 +235,7 @@ void MainWindow::update_monitoring()
         //}
 
         if (phytron->ReadPosA(rack_pos)) {
-            QString b_value = QString::number(rack_pos);
+            QString b_value = QString::number(rack_pos)+"mm ("+QString::number(encoder_pos)+" enc steps)";
             ui->encoderBValue->setText(b_value);
         } else ui->encoderBValue->setText("------");
 
@@ -238,7 +246,7 @@ void MainWindow::update_monitoring()
         STOP_testbench=true;
         testbench_main_state=TEST_IDLE;
     }
-    if (Debug) std::cerr <<"DONE update_monitoring()\n";
+    ON_DEBUG( DEBUG_SHOW_LEAVES )  std::cerr <<"DONE update_monitoring()\n";
 
 }
 static int seq=0;
@@ -331,55 +339,63 @@ void MainWindow::on_start_run_button_clicked()
 
             if (testbench_log){
                 testbench_main_state=TEST_MOVE_ZERO; // this will zero the setup and then start with move forward.
+
+                // ----------- DEBUG TIP -------------------------------------------------
+                //    When testing without endstops we need to skip MOVE_ZERO
+                //
+                // ENABLE_DEBUG(DEBUG_STATE_MACHINE);
+                // testbench_main_state=TEST_MOVE_FORWARD; // start with move forward.
+                // ----------- DEBUG TIP -------------------------------------------------
+
                 testbench_total_num_revs=0;
-                //testbench_timer->start(testbench_tick_ms);
+                if (!testbench_timer->isActive()) testbench_timer->start(testbench_tick_ms);
                 ui->start_run_button->setText("STOP");
             }
         }
     }
 }
 
-void MainWindow::on_timer()
-{
-    if (Debug)     std::cerr <<"STARTING on_timer()\n";
-    if (saveImage) {
-        auto time_running = QDateTime::currentSecsSinceEpoch()-vidStartTime.toSecsSinceEpoch();
-        if (time_running>=ui->video_duration_spinBox->value()) {
-            //saveImage = false;
-            printf("No image saved! \r\n");
-        }
-    }
-    if (Debug)  std::cerr <<"DONE on_timer()\n";
-}
+//void MainWindow::on_timer()
+//{
+//    if (Debug)     std::cerr <<"STARTING on_timer()\n";
+//    if (saveImage) {
+//        auto time_running = QDateTime::currentSecsSinceEpoch()-vidStartTime.toSecsSinceEpoch();
+//        if (time_running>=ui->video_duration_spinBox->value()) {
+//            //saveImage = false;
+//            printf("No image saved! \r\n");
+//        }
+//    }
+//    if (Debug)  std::cerr <<"DONE on_timer()\n";
+//}
 
 void MainWindow::on_updates_timer()
 {
-    if (Debug) std::cerr <<"STARTING on_updates_timer()\n";
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"STARTING on_updates_timer()\n";
 
     backgroundMeasurements.StampWD();
     if (updates_busy) return;
     updates_busy=true;
     if(!test_bench_busy) update_monitoring();
     updates_busy=false;
-    if (Debug) std::cerr <<"DONE on_updates_timer()\n";
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"DONE on_updates_timer()\n";
 }
 
 void MainWindow::on_camera()
 {
-    if (Debug) std::cerr <<"STARTING on_camera()\n";
+    ON_DEBUG(DEBUG_TIMERS)  std::cerr <<"STARTING on_camera()\n";
     update_cam_image();
-    if (Debug) std::cerr <<"Done on_camera()\n";
+    ON_DEBUG(DEBUG_TIMERS)  std::cerr <<"Done on_camera()\n";
 }
 
 void MainWindow::on_testbench_tick()
 {
-    if (Debug) std::cerr <<"STARTING on_testbench_tick()\n";
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"STARTING on_testbench_tick()\n";
     sync_cnt=sync_cnt+1;
     if (test_bench_busy) return;
     if (updates_busy) return;
     test_bench_busy=true;
 
-    if (Debug) std::cerr <<"DOING on_testbench_tick()\n";
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"DOING on_testbench_tick()\n";
     if(sync_cnt>=5) {
         update_monitoring();
         sync_cnt=0;
@@ -394,7 +410,7 @@ void MainWindow::on_testbench_tick()
     case TEST_IDLE:
         break;
     case TEST_FINISHED:
-        if (Debug) std::cerr << "TestBench: Finished\n";
+        ON_DEBUG( DEBUG_STATE_MACHINE )  std::cerr << "TestBench: Finished\n";
         break;
     case TEST_CCW_ZERO:
     case TEST_CW_ZERO:
@@ -405,7 +421,7 @@ void MainWindow::on_testbench_tick()
         break;
     case TEST_MOVE_FORWARD:
     case TEST_MOVE_BACKWARDS:
-        if (Debug) std::cerr << "TestBench: TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TestBench: TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
         backgroundMeasurements.DoRequest(REQ_START_MEASUREMENTS);
         if (phytron){
             int steps = ui->motor_revolutions_per_direction_spinBox->value();//ui->motor_revolutions_per_direction_spinBox->value()*200*1.591549431;
@@ -434,11 +450,12 @@ void MainWindow::on_testbench_tick()
 
         num_not_changed=0;
         testbench_main_state=TEST_WAIT_PHYTRON;
-        if (Debug) std::cerr << "TestBench: Done TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TestBench: Done TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
 
         break;
 
     case TEST_MOVE_ZERO:
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TestBench:TEST_MOVE_ZERO\n";
          if (phytron){
 
              phytron->DoMOPmin();
@@ -447,23 +464,19 @@ void MainWindow::on_testbench_tick()
          } else {
              testbench_main_state=TEST_FINISHED;
          }
+        ON_DEBUG( DEBUG_STATE_MACHINE )  std::cerr << "TestBench: Done TEST_MOVE_ZERO\n";
         break;
 
     case TEST_WAIT_PHYTRON:
-        if (Debug) std::cerr << "TEST_WAIT_PHYTRON started\n";
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_PHYTRON started\n";
         // we should make sure that reading out the phytron is done
         // without interfering the readout of the position..
-        if (movie_capture_busy) {
-            if (std::abs(vidStartTime.msecsTo(QDateTime::currentDateTime()))>=(ui->video_duration_spinBox->value()*1000)){
-                cam.stop_movie_capture();
-                movie_capture_busy=false;
-                movie_capture_save=true;
-                printf("Movie capture is finished, movie can be saved now (duration of video is reached)! \r\n");
-            }
-        }
+
         if (phytron){
             if (phytron->ReadPosA(rack_pos))
                 backgroundMeasurements.phytron_position=rack_pos;
+            if (phytron->ReadEncoderA(encoder_pos))
+                backgroundMeasurements.encoder_position =  encoder_pos;
             /*
             if (last_phytron!=backgroundMeasurements.phytron_position){
                 num_not_changed=0;
@@ -472,8 +485,23 @@ void MainWindow::on_testbench_tick()
             }
             num_not_changed+=1;
             */
-            if (phytron->IsMotorRunning("Is motor running during TEST_WAIT_PHYTRON")) break;
+            bool motorON = phytron->IsMotorRunning("Is motor running during TEST_WAIT_PHYTRON");
+
+            if (movie_capture_busy && motorON && std::abs(vidStartTime.msecsTo(QDateTime::currentDateTime()))>=(ui->video_duration_spinBox->value()*1000)){
+                    cam.stop_movie_capture();
+                    movie_capture_busy=false;
+                    movie_capture_save=true;
+                    printf("Movie capture is finished, movie can be saved now (duration of video is reached)! \r\n");
+                }
+            if (motorON) break;
+        } else { // no Phytron connected, abor5t the test!
+            testbench_main_state = TEST_FINISHED;
+            if (testbench_log) testbench_log->Write("ERROR: Test aborted due to connection error with Phytron controller!!");
+            break;
         }
+
+
+
 
         // The movement has finished here
 
@@ -490,14 +518,20 @@ void MainWindow::on_testbench_tick()
 
         // update progress
         ui->revolutions_counter->setValue(testbench_total_num_revs * (ui->revolutions_counter->maximum()-1) / ui->motor_total_revolutions_spinBox->value());
+
+        // produce new Guesstimate
+        update_time_left(ui->motor_total_revolutions_spinBox->value()-testbench_total_num_revs);
+
         // wait if necessary
         testbench_main_state = TEST_WAIT_TIME;
         testbench_wait_start = QDateTime::currentDateTime();
         testbench_waited_ms  = testbench_tick_ms;
-        if (Debug) std::cerr << "TEST_WAIT_PHYTRON finished\n";
+
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_PHYTRON finished\n";
+
         break;
     case TEST_WAIT_TIME:
-        if (Debug) std::cerr << "TEST_WAIT_TIME iteration\n";
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_TIME iteration\n";
 
         if (phytron && phytron->IsMotorRunning("is motor running during TEST_WAIT_TIME")) break;
 
@@ -517,21 +551,23 @@ void MainWindow::on_testbench_tick()
             printf("Movie is stored! \r\n");
         }
         testbench_waited_ms = std::abs(testbench_wait_start.msecsTo(QDateTime::currentDateTime()));
-        if (testbench_waited_ms>=ui->pause_time_spinBox->value()*1000){
+        if (testbench_waited_ms>=ui->pause_time_spinBox->value()){
             testbench_main_state=testbench_next_state;
-            if (Debug) std::cerr << "TEST_WAIT_TIME finished\n";
+            ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_TIME finished\n";
             if (testbench_total_num_revs>=ui->motor_total_revolutions_spinBox->value()) {
                 testbench_main_state = TEST_FINISHED;
                 testbench_log->close();
             }
         }
+        ON_DEBUG( DEBUG_STATE_MACHINE )std::cerr << "TEST_WAIT_TIME Done\n";
+
         break;
     default:
         testbench_main_state=TEST_FINISHED;
         break;
     }
     test_bench_busy=false;
-    if (Debug) std::cerr <<"DONE on_testbench_tick()\n";
+    ON_DEBUG(DEBUG_TIMERS)  std::cerr <<"DONE on_testbench_tick()\n";
 }
 
 void MainWindow::on_camera_exp_time_spinBox_valueChanged(int arg1)
@@ -558,6 +594,7 @@ void MainWindow::store_measurements(LogFile  where, sample *samp, int num_sample
                 ss << samp[s].val[i] << ",";
             ss << samp[s].phytron_pos << ",";
             ss << (int) testbench_main_state ;
+            ss << "," << samp[s].encoder_pos ;
             where->Write(ss.str());
         }
         where->sync();
@@ -578,6 +615,21 @@ void MainWindow::store_movie()
         }
     }
 
+}
+
+void MainWindow::update_time_left(uint64_t num_steps)
+{
+    uint64_t full_time_estimate_seconds = ((8000ULL+ui->pause_time_spinBox->value()) * num_steps)/(1000ULL);
+    uint64_t Seconds = full_time_estimate_seconds % 60;
+    uint64_t Minutes = full_time_estimate_seconds /60;
+    uint64_t Hours = full_time_estimate_seconds/3600;
+    uint64_t Days = Hours / 24;
+    uint64_t Weeks = Days / 7;
+    Minutes = Minutes % 60;
+    Hours = Hours % 24;
+    Days = Days %7;
+    QString timeleft = "Estimated time: " + QString::number(Weeks) +" weeks " + QString::number(Days) +" days " +  QString::number(Hours) +" hours " + QString::number(Minutes) +" minutes " + QString::number(Seconds) +" seconds \n";
+    ui->TimeLeft->setText(timeleft);
 }
 
 void MainWindow::on_doCCWindex_clicked()
@@ -612,4 +664,9 @@ void MainWindow::on_GoTenBackwards_clicked()
     if (phytron) {
         phytron->GoToPos(0);
     }
+}
+
+void MainWindow::on_motor_total_revolutions_spinBox_valueChanged(int arg1)
+{
+    update_time_left(arg1);
 }

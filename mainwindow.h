@@ -56,7 +56,7 @@ public:
 private slots:
     void on_start_run_button_clicked();
 
-    void on_timer();
+    //void on_timer();
     void on_updates_timer();
     void on_camera();
     void on_testbench_tick();
@@ -73,9 +73,12 @@ private slots:
 
     void on_GoTenBackwards_clicked();
 
+    void on_motor_total_revolutions_spinBox_valueChanged(int arg1);
+
 private:
     void store_measurements(LogFile where, sample *samp, int num_samples);
     void store_movie();
+    void update_time_left(uint64_t num_steps);
     Ui::MainWindow *ui;
     int num;
     qreal min,max;
@@ -118,8 +121,9 @@ private:
     testbench_states testbench_next_state;
     bool STOP_testbench=false;
     float rack_pos=0.0;
-
-    bool Debug;
-
+    int encoder_pos=0;
+    int Debug;
+    void ENABLE_DEBUG( int Dstate ) {Debug|=Dstate;}
+    void DISABLE_DEBUG(int Dstate ) {Debug&=~Dstate;}
 };
 #endif // MAINWINDOW_H
