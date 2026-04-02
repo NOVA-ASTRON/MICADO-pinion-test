@@ -6,6 +6,28 @@
 #include "thorlabscamera.h"
 #include "threadedtimer.h"
 
+
+
+typedef enum testbench_states_t {
+    TEST_IDLE=0,
+    TEST_FINISHED=1,
+    TEST_CW_ZERO=2,
+    TEST_CCW_ZERO=3,
+    TEST_CW_LONG=4,
+    TEST_CW_SHORT=5,
+    TEST_CCW_LONG=6,
+    TEST_CCW_SHORT=7,
+    TEST_SUB_STATE=8,
+    TEST_START_MOVIE_CAPTURE=9,
+    TEST_SAVE_IMAGE=10,
+    TEST_WAIT_PHYTRON=11,
+    TEST_WAIT_TIME=12,
+
+    TEST_MOVE_FORWARD=14,
+    TEST_MOVE_BACKWARDS=15,
+    TEST_MOVE_ZERO=16,
+} testbench_states;
+
 #include <QMainWindow>
 
 QT_BEGIN_NAMESPACE
@@ -34,7 +56,7 @@ public:
 private slots:
     void on_start_run_button_clicked();
 
-    void on_timer();
+    //void on_timer();
     void on_updates_timer();
     void on_camera();
     void on_testbench_tick();
@@ -47,16 +69,23 @@ private slots:
 
     void on_doCWindex_clicked();
 
+    void on_GoTenForward_clicked();
+
+    void on_GoTenBackwards_clicked();
+
+    void on_motor_total_revolutions_spinBox_valueChanged(int arg1);
+
 private:
     void store_measurements(LogFile where, sample *samp, int num_samples);
     void store_movie();
+    void update_time_left(uint64_t num_steps);
     Ui::MainWindow *ui;
     int num;
     qreal min,max;
     MotorDriver *phytron;
     LogFile phytron_log;
-    AnalogDAQ TorqueSensor;
-    bool TorqueSensorAvailable;
+    //AnalogDAQ TorqueSensor;
+    //bool TorqueSensorAvailable;
 
     QPixmap camera_pixmap;
     ThorlabsCamera cam;
@@ -82,11 +111,19 @@ private:
     int num_not_changed;
     int last_phytron;
     volatile bool test_bench_busy=false;
+    volatile bool updates_busy=false;
     volatile bool movie_capture_busy=false;
     volatile bool movie_capture_save=false;
+    volatile int sync_cnt=0;
+    bool M0Pachieved=false;
 
     testbench_states testbench_main_state;
     testbench_states testbench_next_state;
-
+    bool STOP_testbench=false;
+    float rack_pos=0.0;
+    int encoder_pos=0;
+    int Debug;
+    void ENABLE_DEBUG( int Dstate ) {Debug|=Dstate;}
+    void DISABLE_DEBUG(int Dstate ) {Debug&=~Dstate;}
 };
 #endif // MAINWINDOW_H

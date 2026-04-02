@@ -18,9 +18,9 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>10</y>
+      <y>20</y>
       <width>501</width>
-      <height>601</height>
+      <height>681</height>
      </rect>
     </property>
     <property name="title">
@@ -51,7 +51,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Strokes/Direction</string>
+       <string>Distance to travel in mm</string>
       </property>
      </widget>
      <widget class="QSpinBox" name="motor_revolutions_per_direction_spinBox">
@@ -70,7 +70,7 @@
        <number>99999999</number>
       </property>
       <property name="value">
-       <number>1</number>
+       <number>140</number>
       </property>
      </widget>
     </widget>
@@ -112,7 +112,7 @@
        <set>Qt::AlignCenter</set>
       </property>
       <property name="maximum">
-       <number>160000</number>
+       <number>400000</number>
       </property>
       <property name="value">
        <number>4</number>
@@ -141,7 +141,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Pause time (sec)</string>
+       <string>Pause time (milli seconds)</string>
       </property>
      </widget>
      <widget class="QSpinBox" name="pause_time_spinBox">
@@ -156,17 +156,20 @@
       <property name="alignment">
        <set>Qt::AlignCenter</set>
       </property>
+      <property name="minimum">
+       <number>100</number>
+      </property>
       <property name="maximum">
-       <number>1300000</number>
+       <number>20000</number>
       </property>
       <property name="singleStep">
-       <number>1</number>
+       <number>100</number>
       </property>
       <property name="stepType">
        <enum>QAbstractSpinBox::DefaultStepType</enum>
       </property>
       <property name="value">
-       <number>0</number>
+       <number>100</number>
       </property>
      </widget>
     </widget>
@@ -255,6 +258,9 @@
      </widget>
     </widget>
     <widget class="QRadioButton" name="motor_anti_CW_radioButton">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
      <property name="geometry">
       <rect>
        <x>20</x>
@@ -269,10 +275,13 @@
       </font>
      </property>
      <property name="text">
-      <string>Turn &amp;motor anti-CW only</string>
+      <string>Backwards only</string>
      </property>
     </widget>
     <widget class="QRadioButton" name="motor_CW_radioButton">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
      <property name="geometry">
       <rect>
        <x>20</x>
@@ -287,7 +296,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Turn motor CW only</string>
+      <string>Forwards only</string>
      </property>
     </widget>
     <widget class="QRadioButton" name="motor_alternate_direction_radioButton">
@@ -305,10 +314,94 @@
       </font>
      </property>
      <property name="text">
-      <string>Alternate CW and anti-CW</string>
+      <string>Alternate Forward and Backwards</string>
      </property>
      <property name="checked">
       <bool>true</bool>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="doCCWindex">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>570</y>
+       <width>111</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>MOP+</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="encoderAValue">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>640</y>
+       <width>71</width>
+       <height>32</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="encoderBValue">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>640</y>
+       <width>181</width>
+       <height>32</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="doCWindex">
+     <property name="geometry">
+      <rect>
+       <x>140</x>
+       <y>570</y>
+       <width>111</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>MOP-</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="GoTenForward">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="geometry">
+      <rect>
+       <x>320</x>
+       <y>500</y>
+       <width>161</width>
+       <height>71</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>GOTO MAX</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="GoTenBackwards">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="geometry">
+      <rect>
+       <x>320</x>
+       <y>590</y>
+       <width>161</width>
+       <height>71</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>GOTO MIN</string>
      </property>
     </widget>
    </widget>
@@ -484,9 +577,9 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>610</y>
+      <y>720</y>
       <width>501</width>
-      <height>381</height>
+      <height>271</height>
      </rect>
     </property>
     <property name="title">
@@ -499,7 +592,7 @@
      <property name="geometry">
       <rect>
        <x>20</x>
-       <y>150</y>
+       <y>120</y>
        <width>461</width>
        <height>91</height>
       </rect>
@@ -517,7 +610,7 @@
      <property name="geometry">
       <rect>
        <x>20</x>
-       <y>40</y>
+       <y>20</y>
        <width>461</width>
        <height>91</height>
       </rect>
@@ -541,56 +634,17 @@
       </property>
      </widget>
     </widget>
-    <widget class="QPushButton" name="doCCWindex">
-     <property name="geometry">
-      <rect>
-       <x>50</x>
-       <y>250</y>
-       <width>131</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>CCW index</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="doCWindex">
-     <property name="geometry">
-      <rect>
-       <x>300</x>
-       <y>250</y>
-       <width>161</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>CW index</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="encoderAValue">
+    <widget class="QLabel" name="TimeLeft">
      <property name="geometry">
       <rect>
        <x>30</x>
-       <y>330</y>
-       <width>171</width>
-       <height>32</height>
+       <y>230</y>
+       <width>431</width>
+       <height>31</height>
       </rect>
      </property>
      <property name="text">
-      <string>TextLabel</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="encoderBValue">
-     <property name="geometry">
-      <rect>
-       <x>290</x>
-       <y>330</y>
-       <width>181</width>
-       <height>32</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>TextLabel</string>
+      <string>Time Left:</string>
      </property>
     </widget>
    </widget>

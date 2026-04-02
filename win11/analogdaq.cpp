@@ -6,16 +6,17 @@
 AnalogDAQ::AnalogDAQ()
 {
     // DAQ
-    BoardNum = 0;
-    ULStat = NOERRORS;
-    Range = BIP10VOLTS;
-    RevLevel = (float)CURRENTREVNUM;
-    HighResAD = FALSE;
-    ADRes = 0;
+    BoardNum    = 0;
+    ULStat      = NOERRORS;
+    Range       = BIP10VOLTS;
+    RevLevel    = (float)CURRENTREVNUM;
+    HighResAD   = FALSE;
+    Debug       = false;
+    ADRes       = 0;
     DefaultTrig = TRIG_POS_EDGE;
-    Options = FOREGROUND;
+    Options     = FOREGROUND;
     ChannelType = ANALOGINPUT;
-    BoardName=new char[BOARDNAMELEN];
+    //BoardName   =new char[BOARDNAMELEN];
 }
 
 int AnalogDAQ::Setup()
@@ -50,6 +51,7 @@ int AnalogDAQ::Setup()
 
 float AnalogDAQ::get_AD(int channel)
 {
+    if (Debug) std::cerr << "get_AD(" << channel << ")\n";
     /*Parameters:
             BoardNum    :number used by CB.CFG to describe this board
             Chan        :input channel number
@@ -63,6 +65,7 @@ float AnalogDAQ::get_AD(int channel)
         return HighResEngUnits;
     }
     ULStat = cbVIn(BoardNum, channel, Range, &EngUnits, Options);
+    if (Debug) std::cerr << "DONE get_AD(" << channel << ")\n";
     return EngUnits;
 }
 

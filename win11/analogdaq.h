@@ -2,6 +2,7 @@
 #define ANALOGDAQ_H
 
 
+#include "cbw.h"
 
 class AnalogDAQ
 {
@@ -20,13 +21,14 @@ private:
     double  HighResEngUnits;
     float   RevLevel;
     bool	HighResAD;
+    bool    Debug;
     int		ADRes;
     int		DefaultTrig;
     int		Options;
     int		ChannelType;
-    char	*BoardName;
+    char    BoardName[BOARDNAMELEN];
     int		dummy;
-    float ADval[16];
+    float   ADval[16];
 };
 
 #endif // ANALOGDAQ_H

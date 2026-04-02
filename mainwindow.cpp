@@ -14,6 +14,14 @@
 static const int num_samples=25;
 auto last_measurement=std::chrono::high_resolution_clock::now();
 
+const int DEBUG_ALL            = 255;
+const int DEBUG_NONE           = 0;
+const int DEBUG_TIMERS         = 1;
+const int DEBUG_STATE_MACHINE  = 2;
+const int DEBUG_SHOW_LEAVES    = 4;
+
+#define ON_DEBUG( Dstate ) if ((Debug & (Dstate))==(Dstate))
+
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -32,12 +40,16 @@ MainWindow::MainWindow(QWidget *parent)
         phytron_log=new LogFile_t("phytronlog.txt");
         phytron= new MotorDriver(ph,phytron_log,"phytron");
 
+
+
         if (phytron->getValid()){
+            phytron->setDebug(false);
             phytron->Init();
             ui->MotorSettings->setAutoFillBackground(true);
             ui->MotorSettings->setEnabled(true);
            // ui->camera_exp_time_spinBox
             ui->start_run_button->setEnabled(true);
+
         } else {
             ui->MotorSettings->setEnabled(false);
             ui->start_run_button->setText("NO Phytron connected");
@@ -61,34 +73,42 @@ MainWindow::MainWindow(QWidget *parent)
             this, SLOT(on_testbench_tick()));
     testbench_tick_ms=10;
 
+
+
     //------------------------------------------------------------------------------------------------
     // add Torque sensor
     //------------------------------------------------------------------------------------------------
 
     //TorqueSensorAvailable = TorqueSensor.Setup();
 
-
+#ifdef USE_UPDATES_TIMER
     updatesTimer = new QTimer(this);
     connect(updatesTimer, SIGNAL(timeout()),
             this, SLOT(on_updates_timer()));
 
     updatesTimer->start(50);// 20 Hz
+    connect(this, SIGNAL(destroyed()), updatesTimer, SLOT(stop()));
+#endif
 
     //------------------------------------------------------------------------------------------------
     // process data every 0.1 sec
     //------------------------------------------------------------------------------------------------
-
+#ifdef USE_TIMER_TWO
     timer = new QTimer(this);
     tcount=0;
 
     //------------------------------------------------------------------------------------------------
     // setup signal and slot
     //------------------------------------------------------------------------------------------------
+
+
     connect(timer, SIGNAL(timeout()),
             this, SLOT(on_timer()));
     last_measurement= std::chrono::high_resolution_clock::now();
     timer->start(interval);
+    connect(this, SIGNAL(destroyed()), timer, SLOT(stop()));
 
+#endif
 
     //------------------------------------------------------------------------------------------------
     // Thorlabs camera
@@ -103,16 +123,9 @@ MainWindow::MainWindow(QWidget *parent)
             cam_valid = false;
         }
     } else {
-
         ui->image_camera_livestream->setText("!! NO CAMERA DETECTED !!");
     }
-    ui->camera_exp_time_spinBox->setEnabled(cam_valid);
-    ui->video_duration_spinBox->setEnabled(cam_valid);
-    ui->video_cycle_spinBox->setEnabled(cam_valid);
-    ui->CaptureImagesDuringRotation->setEnabled(cam_valid);
-    ui->label_9->setEnabled(cam_valid);
-    ui->label_13->setEnabled(cam_valid);
-    ui->label_21->setEnabled(cam_valid);
+
 
     //------------------------------------------------------------------------------------------------
     // image capture timer
@@ -126,8 +139,21 @@ MainWindow::MainWindow(QWidget *parent)
         // setup signal and slot
         connect(camtimer, SIGNAL(timeout()),
                 this, SLOT(on_camera()));
-        camtimer->start(20);
+        camtimer->start(50);
     }
+
+    //------------------------------------------------------------------------------------------------
+    // disable camera settings if no camera
+    //------------------------------------------------------------------------------------------------
+
+    ui->camera_exp_time_spinBox->setEnabled(cam_valid);
+    ui->video_duration_spinBox->setEnabled(cam_valid);
+    ui->video_cycle_spinBox->setEnabled(cam_valid);
+    ui->CaptureImagesDuringRotation->setEnabled(cam_valid);
+    ui->label_9->setEnabled(cam_valid);
+    ui->label_13->setEnabled(cam_valid);
+    ui->label_21->setEnabled(cam_valid);
+
 
     //------------------------------------------------------------------------------------------------
     ui->label_8->setEnabled(false);
@@ -137,17 +163,21 @@ MainWindow::MainWindow(QWidget *parent)
     // start background thread
     //------------------------------------------------------------------------------------------------
 
+    backgroundMeasurements.setRequested_sample_time(ui->sampling_time->value());
+    backgroundMeasurements.setDebug(false);
     backgroundMeasurements.start();
 
     //------------------------------------------------------------------------------------------------
     // cleanup threads and timers when we are done
     //------------------------------------------------------------------------------------------------
-    connect(this, SIGNAL(destroyed()), timer, SLOT(stop()));
-    connect(this, SIGNAL(destroyed()), updatesTimer, SLOT(stop()));
+
+    testbench_timer->start(testbench_tick_ms);
+    Debug=0;
 }
 
 MainWindow::~MainWindow()
 {
+    std::cerr << " MANWINDOW EXIT!\n";
     backgroundMeasurements.exit = true;
     backgroundMeasurements.wait();
     if(phytron) delete phytron;
@@ -158,8 +188,32 @@ MainWindow::~MainWindow()
 void MainWindow::update_monitoring()
 {
     // hopefully this has no real impact on the measurement thread.
+    ON_DEBUG( DEBUG_SHOW_LEAVES ) std::cerr <<"STARTING update_monitoring()\n";
 
-    if (backgroundMeasurements.running) return;
+    backgroundMeasurements.StampWD();
+    if (phytron){
+
+        phytron->ReadStatus();
+
+
+        if (!M0Pachieved && phytron->isM0P()){
+            M0Pachieved=true;
+            QPalette pa = ui->doCWindex->palette();
+            pa.setColor(QPalette::Button,QColor(Qt::green));
+            ui->doCWindex->setAutoFillBackground(true);
+            ui->doCWindex->setPalette(pa);
+            ui->doCWindex->update();
+        }
+        if (M0Pachieved && !phytron->isM0P()){
+            M0Pachieved=false;
+            QPalette pa = ui->doCWindex->palette();
+            pa.setColor(QPalette::Button,QColor(Qt::red));
+            ui->doCWindex->setAutoFillBackground(true);
+            ui->doCWindex->setPalette(pa);
+            ui->doCWindex->update();
+        }
+    }
+
 
     QLCDNumber * ref[]={
         nullptr,
@@ -175,17 +229,24 @@ void MainWindow::update_monitoring()
 
 
     if (phytron) {
+        //if (phytron->ReadStatus()){
+            QString a_value = phytron->IsMotorRunning("Is motor running in update_monitoring()")?"Running":"Stopped";// QString::number(phytron->ReadEncoderA());
+            ui->encoderAValue->setText(a_value);
+        //}
 
-        QString a_value = QString::number(phytron->ReadEncoderA());
-        QString b_value = QString::number(phytron->ReadEncoderB());
-        ui->encoderAValue->setText(a_value);
-        ui->encoderBValue->setText(b_value);
+        if (phytron->ReadPosA(rack_pos)) {
+            QString b_value = QString::number(rack_pos)+"mm ("+QString::number(encoder_pos)+" enc steps)";
+            ui->encoderBValue->setText(b_value);
+        } else ui->encoderBValue->setText("------");
+
     }
-    if (testbench_timer->isActive()&&testbench_main_state==TEST_FINISHED){
+    if (testbench_timer && testbench_timer->isActive()&&testbench_main_state==TEST_FINISHED){
         ui->start_run_button->setText("Done. press to start again.");
-        testbench_timer->stop();
+        //testbench_timer->stop();
+        STOP_testbench=true;
         testbench_main_state=TEST_IDLE;
     }
+    ON_DEBUG( DEBUG_SHOW_LEAVES )  std::cerr <<"DONE update_monitoring()\n";
 
 }
 static int seq=0;
@@ -227,9 +288,10 @@ static std::string timePointToString(const Clock::time_point &tp, const std::str
 }
 void MainWindow::on_start_run_button_clicked()
 {
-    if (testbench_timer->isActive()){
+    if (testbench_timer && testbench_timer->isActive()&&testbench_main_state!=TEST_IDLE){
         saveImage=false;
-        testbench_timer->stop();
+        STOP_testbench=true;
+        //testbench_timer->stop();
         ui->label_8->setEnabled(false);
         ui->revolutions_counter->setEnabled(false);
         if (phytron) phytron->Move(0); // stop?
@@ -261,76 +323,114 @@ void MainWindow::on_start_run_button_clicked()
             QFileInfo fi(filename);
             imgDir = fi.absolutePath();
             testbench_log=new LogFile_t(filename.toStdString());
+
+            if (backgroundMeasurements.isRunning()==false){
+                backgroundMeasurements.StampWD();
+                backgroundMeasurements.start();
+            }
+
+            /*
             if (testbench_log){
                 testbench_main_state=ui->motor_anti_CW_radioButton->isChecked()?TEST_CCW_LONG:TEST_CW_LONG;
                 testbench_total_num_revs=0;
                 testbench_timer->start(testbench_tick_ms);
+                ui->start_run_button->setText("STOP");
+            }*/
+
+            if (testbench_log){
+                testbench_main_state=TEST_MOVE_ZERO; // this will zero the setup and then start with move forward.
+
+                // ----------- DEBUG TIP -------------------------------------------------
+                //    When testing without endstops we need to skip MOVE_ZERO
+                //
+                // ENABLE_DEBUG(DEBUG_STATE_MACHINE);
+                // testbench_main_state=TEST_MOVE_FORWARD; // start with move forward.
+                // ----------- DEBUG TIP -------------------------------------------------
+
+                testbench_total_num_revs=0;
+                if (!testbench_timer->isActive()) testbench_timer->start(testbench_tick_ms);
                 ui->start_run_button->setText("STOP");
             }
         }
     }
 }
 
-void MainWindow::on_timer()
-{
-    if (saveImage) {
-        auto time_running = QDateTime::currentSecsSinceEpoch()-vidStartTime.toSecsSinceEpoch();
-        if (time_running>=ui->video_duration_spinBox->value()) {
-            //saveImage = false;
-            printf("No image saved! \r\n");
-        }
-    }
-}
+//void MainWindow::on_timer()
+//{
+//    if (Debug)     std::cerr <<"STARTING on_timer()\n";
+//    if (saveImage) {
+//        auto time_running = QDateTime::currentSecsSinceEpoch()-vidStartTime.toSecsSinceEpoch();
+//        if (time_running>=ui->video_duration_spinBox->value()) {
+//            //saveImage = false;
+//            printf("No image saved! \r\n");
+//        }
+//    }
+//    if (Debug)  std::cerr <<"DONE on_timer()\n";
+//}
 
 void MainWindow::on_updates_timer()
 {
-    update_monitoring();
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"STARTING on_updates_timer()\n";
+
+    backgroundMeasurements.StampWD();
+    if (updates_busy) return;
+    updates_busy=true;
+    if(!test_bench_busy) update_monitoring();
+    updates_busy=false;
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"DONE on_updates_timer()\n";
 }
 
 void MainWindow::on_camera()
 {
+    ON_DEBUG(DEBUG_TIMERS)  std::cerr <<"STARTING on_camera()\n";
     update_cam_image();
+    ON_DEBUG(DEBUG_TIMERS)  std::cerr <<"Done on_camera()\n";
 }
 
 void MainWindow::on_testbench_tick()
 {
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"STARTING on_testbench_tick()\n";
+    sync_cnt=sync_cnt+1;
     if (test_bench_busy) return;
+    if (updates_busy) return;
     test_bench_busy=true;
+
+    ON_DEBUG(DEBUG_TIMERS) std::cerr <<"DOING on_testbench_tick()\n";
+    if(sync_cnt>=5) {
+        update_monitoring();
+        sync_cnt=0;
+    }
+
+    if (STOP_testbench){
+        testbench_main_state=TEST_IDLE;
+        STOP_testbench=false;
+    }
+
     switch(testbench_main_state){
     case TEST_IDLE:
         break;
     case TEST_FINISHED:
+        ON_DEBUG( DEBUG_STATE_MACHINE )  std::cerr << "TestBench: Finished\n";
         break;
     case TEST_CCW_ZERO:
-        backgroundMeasurements.start_measurements=true;
-        if (phytron){
-            phytron->MoveCCWzero();
-        }
-        if (ui->motor_CW_radioButton->isChecked())
-            testbench_next_state=TEST_CW_LONG;
-        else
-            testbench_next_state=TEST_CCW_LONG;
-        break;
     case TEST_CW_ZERO:
-        backgroundMeasurements.start_measurements=true;
-        if (phytron){
-            phytron->MoveCWzero();
-        }
-        if (ui->motor_CW_radioButton->isChecked())
-            testbench_next_state=TEST_CW_LONG;
-        else
-            testbench_next_state=TEST_CCW_LONG;
-        break;
     case TEST_CW_LONG:
     case TEST_CCW_LONG:
-        backgroundMeasurements.start_measurements=true;
+        std::cerr << "TestBench: Unsupported State\n";
+        testbench_main_state=TEST_FINISHED;
+        break;
+    case TEST_MOVE_FORWARD:
+    case TEST_MOVE_BACKWARDS:
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TestBench: TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
+        backgroundMeasurements.DoRequest(REQ_START_MEASUREMENTS);
         if (phytron){
-            int steps =ui->motor_revolutions_per_direction_spinBox->value()*200*1.591549431;
+            int steps = ui->motor_revolutions_per_direction_spinBox->value();//ui->motor_revolutions_per_direction_spinBox->value()*200*1.591549431;
                 std::stringstream ss;
-                ss << "Step at: " << testbench_total_num_revs+ui->motor_revolutions_per_direction_spinBox->value() << "\n";
-                phytron_log->Write(ss.str());
-            if (testbench_main_state==TEST_CCW_LONG) steps=-steps;
-            phytron->Move(steps);
+                ss << "Step at: " << testbench_total_num_revs+1 << "\n";
+                if (phytron_log) phytron_log->Write(ss.str());
+            if (testbench_main_state==TEST_MOVE_BACKWARDS)
+                steps=0;
+            phytron->GoToPos(steps); // absolute position in mm
 
             if (cam_valid && ui->CaptureImagesDuringRotation->isChecked()){
                 if ((vidCycles%ui->video_cycle_spinBox->value())==0){
@@ -344,66 +444,105 @@ void MainWindow::on_testbench_tick()
             }
         }
 
-        testbench_total_num_revs+=ui->motor_revolutions_per_direction_spinBox->value();
+        testbench_total_num_revs+=1;
+        testbench_next_state=(testbench_main_state==TEST_MOVE_FORWARD)?TEST_MOVE_BACKWARDS:TEST_MOVE_FORWARD;
 
-            if (ui->motor_CW_radioButton->isChecked())
-                testbench_next_state=TEST_CW_LONG;
-            else {
-                if (ui->motor_alternate_direction_radioButton->isChecked()) {
-                    testbench_next_state=(testbench_main_state==TEST_CW_LONG)?TEST_CCW_LONG:TEST_CW_LONG;
-                } else {
-                    // radio button so no need to check..
-                    testbench_next_state=TEST_CCW_LONG;
-                }
-            }
+
         num_not_changed=0;
         testbench_main_state=TEST_WAIT_PHYTRON;
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TestBench: Done TEST_MOVE_FORWARD/TEST_MOVE_BACKWARDS\n";
+
         break;
+
+    case TEST_MOVE_ZERO:
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TestBench:TEST_MOVE_ZERO\n";
+         if (phytron){
+
+             phytron->DoMOPmin();
+             testbench_next_state=TEST_MOVE_FORWARD;
+             testbench_main_state=TEST_WAIT_PHYTRON;
+         } else {
+             testbench_main_state=TEST_FINISHED;
+         }
+        ON_DEBUG( DEBUG_STATE_MACHINE )  std::cerr << "TestBench: Done TEST_MOVE_ZERO\n";
+        break;
+
     case TEST_WAIT_PHYTRON:
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_PHYTRON started\n";
         // we should make sure that reading out the phytron is done
         // without interfering the readout of the position..
-        if (movie_capture_busy) {
-            if (std::abs(vidStartTime.msecsTo(QDateTime::currentDateTime()))>=(ui->video_duration_spinBox->value()*1000)){
-                cam.stop_movie_capture();
-                movie_capture_busy=false;
-                movie_capture_save=true;
-                printf("Movie capture is finished, movie can be saved now (duration of video is reached)! \r\n");
-            }
-        }
+
         if (phytron){
-            backgroundMeasurements.phytron_position=phytron->ReadEncoderA();
+            if (phytron->ReadPosA(rack_pos))
+                backgroundMeasurements.phytron_position=rack_pos;
+            if (phytron->ReadEncoderA(encoder_pos))
+                backgroundMeasurements.encoder_position =  encoder_pos;
+            /*
             if (last_phytron!=backgroundMeasurements.phytron_position){
                 num_not_changed=0;
                 last_phytron=backgroundMeasurements.phytron_position;
                 break;
             }
             num_not_changed+=1;
-            if (num_not_changed<10) break;
+            */
+            bool motorON = phytron->IsMotorRunning("Is motor running during TEST_WAIT_PHYTRON");
+
+            if (movie_capture_busy && motorON && std::abs(vidStartTime.msecsTo(QDateTime::currentDateTime()))>=(ui->video_duration_spinBox->value()*1000)){
+                    cam.stop_movie_capture();
+                    movie_capture_busy=false;
+                    movie_capture_save=true;
+                    printf("Movie capture is finished, movie can be saved now (duration of video is reached)! \r\n");
+                }
+            if (motorON) break;
+        } else { // no Phytron connected, abor5t the test!
+            testbench_main_state = TEST_FINISHED;
+            if (testbench_log) testbench_log->Write("ERROR: Test aborted due to connection error with Phytron controller!!");
+            break;
         }
+
+
+
+
+        // The movement has finished here
+
         if (movie_capture_busy) {
             cam.stop_movie_capture();
             movie_capture_busy=false;
             movie_capture_save=true;
             printf("Movie capture is finished, movie can be saved now! \r\n");
         }
-        if (backgroundMeasurements.running) {
-            backgroundMeasurements.stop_measurements=true;
-            break;
-        }
+
+        backgroundMeasurements.DoRequest(REQ_STOP_MEASUREMENTS);
+        // wait until measuments have stopped
+        if (backgroundMeasurements.running) break;
+
         // update progress
         ui->revolutions_counter->setValue(testbench_total_num_revs * (ui->revolutions_counter->maximum()-1) / ui->motor_total_revolutions_spinBox->value());
+
+        // produce new Guesstimate
+        update_time_left(ui->motor_total_revolutions_spinBox->value()-testbench_total_num_revs);
+
         // wait if necessary
-        testbench_main_state=TEST_WAIT_TIME;
+        testbench_main_state = TEST_WAIT_TIME;
         testbench_wait_start = QDateTime::currentDateTime();
-        testbench_waited_ms = testbench_tick_ms;
+        testbench_waited_ms  = testbench_tick_ms;
+
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_PHYTRON finished\n";
+
         break;
     case TEST_WAIT_TIME:
+        ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_TIME iteration\n";
+
+        if (phytron && phytron->IsMotorRunning("is motor running during TEST_WAIT_TIME")) break;
+
         if (backgroundMeasurements.num_measurements>0){
             // save our test data
+            std::cerr << "TEST_WAIT_TIME save data "<<backgroundMeasurements.num_measurements << "\n";
             if (testbench_log){
                 store_measurements(testbench_log,backgroundMeasurements.measurements,backgroundMeasurements.num_measurements);
             }
             backgroundMeasurements.num_measurements=0;
+            std::cerr << "TEST_WAIT_TIME save data DONE\n";
         }
 
         if (movie_capture_save){
@@ -412,24 +551,28 @@ void MainWindow::on_testbench_tick()
             printf("Movie is stored! \r\n");
         }
         testbench_waited_ms = std::abs(testbench_wait_start.msecsTo(QDateTime::currentDateTime()));
-        if (testbench_waited_ms>=ui->pause_time_spinBox->value()*1000){
+        if (testbench_waited_ms>=ui->pause_time_spinBox->value()){
             testbench_main_state=testbench_next_state;
+            ON_DEBUG( DEBUG_STATE_MACHINE ) std::cerr << "TEST_WAIT_TIME finished\n";
             if (testbench_total_num_revs>=ui->motor_total_revolutions_spinBox->value()) {
                 testbench_main_state = TEST_FINISHED;
                 testbench_log->close();
             }
         }
+        ON_DEBUG( DEBUG_STATE_MACHINE )std::cerr << "TEST_WAIT_TIME Done\n";
+
         break;
     default:
         testbench_main_state=TEST_FINISHED;
         break;
     }
     test_bench_busy=false;
+    ON_DEBUG(DEBUG_TIMERS)  std::cerr <<"DONE on_testbench_tick()\n";
 }
 
 void MainWindow::on_camera_exp_time_spinBox_valueChanged(int arg1)
 {
-    cam.setExposure(arg1*1000);
+    if (cam_valid) cam.setExposure(arg1*1000);
 }
 
 void MainWindow::on_sampling_time_editingFinished()
@@ -437,12 +580,13 @@ void MainWindow::on_sampling_time_editingFinished()
     //timer->stop();
 
     interval = ui->sampling_time->value();
+    backgroundMeasurements.setRequested_sample_time(interval);
     //timer->start(ui->sampling_time->value());
 }
 
 void MainWindow::store_measurements(LogFile  where, sample *samp, int num_samples)
 {
-    if (where) {
+    if (where && samp) {
         for (int s=0;s<num_samples;s+=1) {
             std::stringstream ss;
             ss << samp[s].stamp << ",";
@@ -450,6 +594,7 @@ void MainWindow::store_measurements(LogFile  where, sample *samp, int num_sample
                 ss << samp[s].val[i] << ",";
             ss << samp[s].phytron_pos << ",";
             ss << (int) testbench_main_state ;
+            ss << "," << samp[s].encoder_pos ;
             where->Write(ss.str());
         }
         where->sync();
@@ -458,28 +603,70 @@ void MainWindow::store_measurements(LogFile  where, sample *samp, int num_sample
 
 void MainWindow::store_movie()
 {
-    for (int i=0;i<cam.getMovieSize();i+=1){
-        QImage * frame = cam.getMovieFrame(i);
-        QDateTime stamp = cam.getMovieStamp(i);
-        if (frame){
-            QString frame_name = imgDir + "/imgframe" + QString::number(stamp.toMSecsSinceEpoch()) +".png";
-            frame->save(frame_name,"PNG");
-            printf("Image is saved! \r\n");
+    if (cam_valid){
+        for (int i=0;i<cam.getMovieSize();i+=1){
+            QImage * frame = cam.getMovieFrame(i);
+            QDateTime stamp = cam.getMovieStamp(i);
+            if (frame){
+                QString frame_name = imgDir + "/imgframe" + QString::number(stamp.toMSecsSinceEpoch()) +".png";
+                frame->save(frame_name,"PNG");
+                printf("Image is saved! \r\n");
+            }
         }
     }
 
 }
 
+void MainWindow::update_time_left(uint64_t num_steps)
+{
+    uint64_t full_time_estimate_seconds = ((8000ULL+ui->pause_time_spinBox->value()) * num_steps)/(1000ULL);
+    uint64_t Seconds = full_time_estimate_seconds % 60;
+    uint64_t Minutes = full_time_estimate_seconds /60;
+    uint64_t Hours = full_time_estimate_seconds/3600;
+    uint64_t Days = Hours / 24;
+    uint64_t Weeks = Days / 7;
+    Minutes = Minutes % 60;
+    Hours = Hours % 24;
+    Days = Days %7;
+    QString timeleft = "Estimated time: " + QString::number(Weeks) +" weeks " + QString::number(Days) +" days " +  QString::number(Hours) +" hours " + QString::number(Minutes) +" minutes " + QString::number(Seconds) +" seconds \n";
+    ui->TimeLeft->setText(timeleft);
+}
+
 void MainWindow::on_doCCWindex_clicked()
 {
     if (phytron) {
-        phytron->MoveCCWzero();
+        phytron->DoMOPplus();
+        ui->GoTenBackwards->setEnabled(false);
+        ui->GoTenForward->setEnabled(false);
+
     }
 }
 
 void MainWindow::on_doCWindex_clicked()
 {
     if (phytron) {
-        phytron->MoveCWzero();
+        phytron->DoMOPmin();
+        ui->GoTenBackwards->setEnabled(true);
+        ui->GoTenForward->setEnabled(true);
+
     }
+}
+
+void MainWindow::on_GoTenForward_clicked()
+{
+    if (phytron) {
+        phytron->GoToPos(ui->motor_revolutions_per_direction_spinBox->value());
+    }
+}
+
+void MainWindow::on_GoTenBackwards_clicked()
+{
+    if (phytron) {
+        phytron->GoToPos(0);
+    }
+}
+
+void MainWindow::on_motor_total_revolutions_spinBox_valueChanged(int arg1)
+{
+    update_time_left(arg1);
 }

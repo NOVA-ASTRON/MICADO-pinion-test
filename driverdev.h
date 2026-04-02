@@ -23,6 +23,7 @@ typedef struct deviceState_t
 {
     std::string name;
     bool connected;
+    bool queue_empty;
 }deviceState;
 
 typedef struct cmd_t {
@@ -43,10 +44,10 @@ class DriverDev : public QObject
         Q_OBJECT
 public:
        QSerialPort *serial = null;
-       const optional_devs *devs;
+       const optional_devs *devs= null;
        std::string name;
        LogFile log = null;
-       std::mutex _lock;
+       std::mutex _lock,_readlock;
 
        DriverDev(QObject *parent = nullptr);
 
@@ -67,15 +68,22 @@ public:
        void addHandler();
 
        void processincomingbytes();
-       bool SendCommand(Command & command, std::string err);
+       bool _SendCommand(Command & command, std::string err);
 
        deviceState GetDeviceState();
 
        bool getValid() const;
 
+       int getNum_sent() const;
+
+       bool getDebug() const;
+       void setDebug(bool value);
+
 private:
-       QByteArray IncomingData;
+       int num_sent=0;
+       //QByteArray IncomingData;
        bool valid;
+       bool Debug=false;
    };
 
 #endif // DRIVERDEV_H
